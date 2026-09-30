@@ -101,7 +101,7 @@ export default function Landing() {
         </div>
 
         {/* Hero Title */}
-        <h1 className="mx-auto max-w-5xl text-4xl font-black tracking-tight text-white sm:text-6xl lg:text-7xl leading-[1.1]">
+        <h1 className="mx-auto max-w-5xl text-3xl font-black tracking-tight text-white sm:text-5xl lg:text-7xl leading-[1.1]">
           Manage Engineering Projects with{' '}
           <span className="bg-gradient-to-r from-teal-300 via-emerald-400 to-cyan-400 bg-clip-text text-transparent">
             Absolute Clarity.
@@ -178,7 +178,7 @@ export default function Landing() {
             </div>
 
             {/* Tab Selector Buttons */}
-            <div className="flex rounded-xl bg-slate-950 p-1 border border-slate-800">
+            <div className="flex flex-wrap gap-1 rounded-xl bg-slate-950 p-1 border border-slate-800">
               {[
                 { id: 'kanban', label: 'Kanban Board', icon: FolderKanban },
                 { id: 'analytics', label: 'Metrics & Stats', icon: BarChart3 },
@@ -188,14 +188,15 @@ export default function Landing() {
                 <button
                   key={id}
                   onClick={() => setActiveTab(id)}
-                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-medium transition ${
+                  className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition ${
                     activeTab === id
                       ? 'bg-teal-500 text-slate-950 font-semibold shadow-md'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  <Icon size={14} />
-                  <span>{label}</span>
+                  <Icon size={13} />
+                  <span className="hidden sm:inline">{label}</span>
+                  <span className="sm:hidden">{label.split(' ')[0]}</span>
                 </button>
               ))}
             </div>

@@ -92,7 +92,7 @@ export default function Dashboard() {
     <Layout>
       <section className="mx-auto max-w-7xl px-6 py-8 lg:px-10">
         {/* Hero Welcome Banner */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 p-8 text-white shadow-xl">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 p-6 sm:p-8 text-white shadow-xl">
           <div className="absolute -top-24 -right-24 size-96 rounded-full bg-teal-500/20 blur-3xl" />
           <div className="relative z-10 flex flex-wrap items-center justify-between gap-6">
             <div>
@@ -100,7 +100,7 @@ export default function Dashboard() {
                 <Sparkles size={14} className="text-teal-400" />
                 <span>Productivity Intelligence Active</span>
               </div>
-              <h1 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
+              <h1 className="mt-4 text-2xl font-black tracking-tight sm:text-4xl">
                 Welcome back, {user?.name || 'Developer'}! 👋
               </h1>
               <p className="mt-2 max-w-xl text-sm text-slate-300 leading-relaxed">

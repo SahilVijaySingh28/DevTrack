@@ -172,9 +172,9 @@ export default function Tasks() {
               <span className="flex size-2 rounded-full bg-emerald-500 animate-ping" />
               <p className="text-sm font-semibold text-teal-700">Live Execution Board</p>
             </div>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight">Tasks & Drag-and-Drop</h1>
+            <h1 className="mt-1 text-2xl sm:text-3xl font-semibold tracking-tight">Tasks & Drag-and-Drop</h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="flex items-center gap-1.5 rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800 border border-teal-200">
               <Radio size={12} className="animate-pulse text-teal-600" /> Real-time Synced
             </span>
@@ -196,21 +196,21 @@ export default function Tasks() {
         )}
 
         {/* Task Creation Form with Attachments */}
-        <form onSubmit={addTask} className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <form onSubmit={addTask} className="mt-8 rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">Create New Task</p>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <input
               required
               value={form.title}
               onChange={(event) => setForm({ ...form, title: event.target.value })}
               placeholder="Task title"
-              className="rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-teal-500 text-sm"
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-teal-500 text-sm"
             />
             <select
               required
               value={form.project}
               onChange={(event) => setForm({ ...form, project: event.target.value, assignedTo: '' })}
-              className="rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-teal-500 text-sm"
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-teal-500 text-sm"
             >
               <option value="">Choose project</option>
               {projects.map((project) => (
@@ -222,7 +222,7 @@ export default function Tasks() {
             <select
               value={form.assignedTo}
               onChange={(event) => setForm({ ...form, assignedTo: event.target.value })}
-              className="rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-teal-500 text-sm"
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-teal-500 text-sm"
             >
               <option value="">Unassigned</option>
               {selectedProject?.members?.map((member) => (
@@ -234,7 +234,7 @@ export default function Tasks() {
             <select
               value={form.priority}
               onChange={(event) => setForm({ ...form, priority: event.target.value })}
-              className="rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-teal-500 text-sm"
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-teal-500 text-sm"
             >
               <option>Low</option>
               <option>Medium</option>
@@ -244,7 +244,7 @@ export default function Tasks() {
               type="date"
               value={form.dueDate}
               onChange={(event) => setForm({ ...form, dueDate: event.target.value })}
-              className="rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-teal-500 text-sm"
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-teal-500 text-sm"
             />
           </div>
 
@@ -266,17 +266,17 @@ export default function Tasks() {
         </form>
 
         {/* Filters bar */}
-        <div className="mt-6 flex flex-wrap gap-3">
+        <div className="mt-6 grid gap-3 sm:flex sm:flex-wrap">
           <input
             value={filters.search}
             onChange={(event) => setFilters({ ...filters, search: event.target.value })}
             placeholder="Search task titles..."
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-teal-500"
+            className="w-full sm:w-auto rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-teal-500"
           />
           <select
             value={filters.status}
             onChange={(event) => setFilters({ ...filters, status: event.target.value })}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm"
+            className="w-full sm:w-auto rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm"
           >
             <option value="">All statuses</option>
             {columns.map((column) => (
@@ -286,7 +286,7 @@ export default function Tasks() {
           <select
             value={filters.priority}
             onChange={(event) => setFilters({ ...filters, priority: event.target.value })}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm"
+            className="w-full sm:w-auto rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm"
           >
             <option value="">All priorities</option>
             <option>Low</option>
@@ -299,7 +299,7 @@ export default function Tasks() {
         {state.loading ? (
           <p className="mt-8 text-sm text-slate-500">Loading live tasks...</p>
         ) : (
-          <div className="mt-8 grid gap-6 lg:grid-cols-3">
+          <div className="mt-8 grid gap-6 md:grid-cols-3">
             {columns.map((column) => {
               const columnTasks = tasks.filter((task) => task.status === column)
               const isOver = dragOverColumn === column

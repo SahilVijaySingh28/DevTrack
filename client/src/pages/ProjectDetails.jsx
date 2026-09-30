@@ -330,19 +330,19 @@ export default function ProjectDetails() {
           </span>
         </div>
 
-        <header className="mt-6 flex flex-wrap items-start justify-between gap-5">
-          <div>
+        <header className="mt-6 flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
             <span className="rounded-full bg-teal-100 px-3 py-1 text-xs font-semibold text-teal-800">
               {project.status}
             </span>
-            <h1 className="mt-4 text-3xl font-semibold tracking-tight">
+            <h1 className="mt-4 text-2xl sm:text-3xl font-semibold tracking-tight break-words">
               {project.title}
             </h1>
             <p className="mt-2 max-w-2xl text-slate-500">
               {project.description || "No description yet."}
             </p>
           </div>
-          <div className="flex items-center gap-4 text-sm text-slate-500">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
             <span>
               {tasks.length} tasks · {project.members.length} members
             </span>
@@ -358,7 +358,7 @@ export default function ProjectDetails() {
         {editing && (
           <form
             onSubmit={updateProject}
-            className="mt-6 grid gap-3 rounded-2xl border border-slate-200 bg-white p-5 md:grid-cols-[1fr_1.3fr_auto_auto]"
+            className="mt-6 grid gap-3 rounded-2xl border border-slate-200 bg-white p-5 sm:grid-cols-2 lg:grid-cols-[1fr_1.3fr_auto_auto]"
           >
             <input
               required
@@ -415,10 +415,10 @@ export default function ProjectDetails() {
             {/* Task Creation with AttachmentPicker */}
             <form
               onSubmit={createTask}
-              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+              className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm"
             >
               <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Add Task to Project</p>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <input
                   required
                   value={taskForm.title}

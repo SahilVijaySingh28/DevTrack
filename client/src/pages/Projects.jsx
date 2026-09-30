@@ -85,7 +85,7 @@ export default function Projects() {
         <div className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200/80 pb-6">
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-teal-700">Workspace Hub</span>
-            <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-900">Projects</h1>
+            <h1 className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">Projects</h1>
             <p className="mt-1 text-sm text-slate-500">Manage team initiatives, collaborator permissions, and progress in one place.</p>
           </div>
 
