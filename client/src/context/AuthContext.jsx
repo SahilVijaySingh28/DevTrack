@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import api from '../api/axios'
+import socket from '../api/socket'
 import { AuthContext } from './auth-context'
 
 const tokenKey = 'devtrack_token'
@@ -7,14 +8,25 @@ const tokenKey = 'devtrack_token'
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(() => Boolean(localStorage.getItem(tokenKey)))
+  const userId = user?._id || user?.id
 
   useEffect(() => {
     if (!localStorage.getItem(tokenKey)) return
+
     api.get('/auth/me')
       .then(({ data }) => setUser(data.user))
       .catch(() => localStorage.removeItem(tokenKey))
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (userId) {
+      socket.connect()
+      return () => socket.disconnect()
+    }
+
+    socket.disconnect()
+  }, [userId])
 
   const authenticate = (data) => {
     localStorage.setItem(tokenKey, data.token)
