@@ -1,9 +1,10 @@
 # DevTrack
 
-DevTrack is a production-style project management and team collaboration platform. It demonstrates a complete JavaScript full-stack workflow with React, Vite, Tailwind CSS, Node.js, Express, MongoDB, Mongoose, JWT authentication, bcrypt password hashing, CRUD APIs, project RBAC, activity history, and automated API tests.
+DevTrack is a production-style project management and team collaboration platform. It features a polished landing page, interactive Kanban boards, role-based access control (RBAC), audit activity trails, and real-time project metrics — built with a complete JavaScript full-stack: React, Vite, Tailwind CSS, Node.js, Express, MongoDB, and JWT authentication.
 
 ## Features
 
+- **Landing page** — Animated hero section, interactive app preview tabs (Kanban, Metrics, RBAC, Audit Log), features grid, and call-to-action before login
 - User registration, login, logout, and session restoration
 - JWT-protected API and frontend routes
 - bcrypt password hashing with passwords excluded from normal responses
@@ -73,13 +74,20 @@ DevTrack/
 │   │   ├── favicon.svg
 │   │   └── icons.svg
 │   ├── src/
-│   │   ├── api/axios.js
-│   │   ├── components/layout/Layout.jsx
+│   │   ├── api/
+│   │   │   ├── axios.js
+│   │   │   └── socket.js
+│   │   ├── components/
+│   │   │   ├── common/
+│   │   │   │   ├── AttachmentPicker.jsx
+│   │   │   │   └── AvatarStack.jsx
+│   │   │   └── layout/Layout.jsx
 │   │   ├── context/
 │   │   │   ├── AuthContext.jsx
 │   │   │   ├── auth-context.js
 │   │   │   └── useAuth.js
 │   │   ├── pages/
+│   │   │   ├── Landing.jsx        <- new landing page (entry point)
 │   │   │   ├── Dashboard.jsx
 │   │   │   ├── Login.jsx
 │   │   │   ├── ProjectDetails.jsx
@@ -121,8 +129,10 @@ DevTrack/
 │   │   ├── taskRoutes.js
 │   │   └── userRoutes.js
 │   ├── test/api.test.js
-│   ├── utils/generateToken.js
-│   ├── utils/recordActivity.js
+│   ├── utils/
+│   │   ├── generateToken.js
+│   │   ├── recordActivity.js
+│   │   └── socket.js
 │   ├── .env.example
 │   ├── package.json
 │   ├── seed.js
@@ -188,7 +198,7 @@ Start the frontend in a second terminal:
 npm run dev:client
 ```
 
-Open `http://localhost:5173`. The backend health endpoint is `http://localhost:5000/api/health`.
+Open `http://localhost:5173`. You will land on the **Landing page** first. The backend health endpoint is `http://localhost:5000/api/health`.
 
 If the terminal is already inside `server`, use `npm run dev` instead of `npm run dev:server`.
 
@@ -212,16 +222,17 @@ The seed script replaces records owned by the demo account. It should not be use
 ## Frontend Routes
 
 ```text
-/login
-/register
-/dashboard
-/projects
-/projects/:id
-/tasks
-/profile
+/              <- Landing page (public entry point)
+/login         <- Sign in
+/register      <- Create account
+/dashboard     <- protected
+/projects      <- protected
+/projects/:id  <- protected
+/tasks         <- protected
+/profile       <- protected
 ```
 
-The dashboard, projects, project details, tasks, and profile routes are protected. Unauthenticated users are redirected to `/login`.
+Unauthenticated users visiting protected routes are redirected to `/`. The Login and Register pages include a "Back to Home Page" button to return to the landing page.
 
 ## REST API
 
@@ -383,6 +394,8 @@ VITE_API_URL=https://your-render-service.onrender.com/api
 
 After deployment, update Render's `CLIENT_URL` to the exact Vercel origin without a route suffix such as `/login`.
 
+Pushing to the `main` branch automatically triggers a redeploy on both Vercel (frontend) and Render (backend).
+
 ## Git and GitHub
 
 Useful commits include:
@@ -397,6 +410,7 @@ Create task and comment APIs
 Build responsive dashboard UI
 Add project RBAC
 Add activity history and API tests
+Add landing page with hero, interactive preview, and features grid
 Prepare application for deployment
 ```
 
@@ -404,6 +418,7 @@ Never commit `.env` files, MongoDB credentials, JWT secrets, `node_modules`, or 
 
 ## Interview Talking Points
 
+- **Landing page UX:** Glassmorphic dark-mode design with animated hero, tabbed interactive app preview, and clear call-to-action flow before login.
 - **React:** reusable component-based UI and state-driven rendering.
 - **Node.js and Express:** JavaScript across the stack with simple REST routing and middleware.
 - **MongoDB:** flexible document storage mapped to JavaScript objects through Mongoose.
@@ -414,7 +429,7 @@ Never commit `.env` files, MongoDB credentials, JWT secrets, `node_modules`, or 
 
 ## Screenshots
 
-Add screenshots of the login page, dashboard, project details, Kanban board, and profile page before publishing the project in a portfolio.
+Add screenshots of the landing page, login page, dashboard, project details, Kanban board, and profile page before publishing the project in a portfolio.
 
 ## Future Improvements
 
