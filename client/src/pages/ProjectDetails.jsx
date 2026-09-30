@@ -4,12 +4,15 @@ import {
   Edit3,
   MessageSquare,
   Plus,
+  Radio,
   Send,
   Trash2,
   UserPlus,
 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import api from "../api/axios";
+import socket from "../api/socket";
+import AttachmentPicker, { AttachmentList } from "../components/common/AttachmentPicker";
 import Layout from "../components/layout/Layout";
 import { useAuth } from "../context/useAuth";
 
@@ -29,7 +32,9 @@ export default function ProjectDetails() {
     priority: "Medium",
     dueDate: "",
     assignedTo: "",
+    attachments: [],
   });
+  const [commentAttachments, setCommentAttachments] = useState([]);
   const [projectForm, setProjectForm] = useState({
     title: "",
     description: "",
@@ -70,9 +75,58 @@ export default function ProjectDetails() {
       setState((current) => ({ ...current, loading: false }));
     }
   }, [id, filter]);
+
   useEffect(() => {
     queueMicrotask(load);
   }, [load]);
+
+  // Socket.IO Real-Time listeners for project view
+  useEffect(() => {
+    socket.emit("join_project", id);
+
+    const handleTaskCreated = (newTask) => {
+      if (String(newTask.project?._id || newTask.project) === String(id)) {
+        setTasks((prev) => (prev.some((t) => t._id === newTask._id) ? prev : [newTask, ...prev]));
+      }
+    };
+
+    const handleTaskUpdated = (updatedTask) => {
+      if (String(updatedTask.project?._id || updatedTask.project) === String(id)) {
+        setTasks((prev) => prev.map((t) => (t._id === updatedTask._id ? updatedTask : t)));
+      }
+    };
+
+    const handleTaskDeleted = ({ taskId }) => {
+      setTasks((prev) => prev.filter((t) => t._id !== taskId));
+    };
+
+    const handleCommentAdded = ({ taskId, comment: newComment }) => {
+      if (selectedTaskId === taskId) {
+        setComments((prev) => (prev.some((c) => c._id === newComment._id) ? prev : [...prev, newComment]));
+      }
+    };
+
+    const handleCommentDeleted = ({ commentId, taskId }) => {
+      if (selectedTaskId === taskId) {
+        setComments((prev) => prev.filter((c) => c._id !== commentId));
+      }
+    };
+
+    socket.on("task_created", handleTaskCreated);
+    socket.on("task_updated", handleTaskUpdated);
+    socket.on("task_deleted", handleTaskDeleted);
+    socket.on("comment_added", handleCommentAdded);
+    socket.on("comment_deleted", handleCommentDeleted);
+
+    return () => {
+      socket.emit("leave_project", id);
+      socket.off("task_created", handleTaskCreated);
+      socket.off("task_updated", handleTaskUpdated);
+      socket.off("task_deleted", handleTaskDeleted);
+      socket.off("comment_added", handleCommentAdded);
+      socket.off("comment_deleted", handleCommentDeleted);
+    };
+  }, [id, selectedTaskId]);
 
   const updateProject = async (event) => {
     event.preventDefault();
@@ -94,6 +148,7 @@ export default function ProjectDetails() {
       }));
     }
   };
+
   const createTask = async (event) => {
     event.preventDefault();
     try {
@@ -103,12 +158,13 @@ export default function ProjectDetails() {
         assignedTo: taskForm.assignedTo || undefined,
         dueDate: taskForm.dueDate || undefined,
       });
-      setTasks((items) => [data.task, ...items]);
+      setTasks((items) => (items.some((i) => i._id === data.task._id) ? items : [data.task, ...items]));
       setTaskForm({
         title: "",
         priority: "Medium",
         dueDate: "",
         assignedTo: "",
+        attachments: [],
       });
       setState((current) => ({ ...current, success: "Task created" }));
     } catch (error) {
@@ -118,6 +174,7 @@ export default function ProjectDetails() {
       }));
     }
   };
+
   const updateStatus = async (task, status) => {
     try {
       const { data } = await api.put(`/tasks/${task._id}`, { status });
@@ -131,6 +188,7 @@ export default function ProjectDetails() {
       }));
     }
   };
+
   const deleteTask = async (task) => {
     if (!window.confirm(`Delete "${task.title}"?`)) return;
     try {
@@ -144,6 +202,7 @@ export default function ProjectDetails() {
       }));
     }
   };
+
   const searchMembers = async (value) => {
     setMemberSearch(value);
     if (value.length < 2) return setUsers([]);
@@ -154,6 +213,7 @@ export default function ProjectDetails() {
       setUsers([]);
     }
   };
+
   const addMember = async (userId) => {
     try {
       const { data } = await api.post(`/projects/${id}/members`, { userId });
@@ -167,14 +227,19 @@ export default function ProjectDetails() {
       }));
     }
   };
+
   const updateRole = async (userId, role) => {
     try {
-      const { data } = await api.put(`/projects/${id}/members/${userId}/role`, { role })
-      setProject(data.project)
+      const { data } = await api.put(`/projects/${id}/members/${userId}/role`, { role });
+      setProject(data.project);
     } catch (error) {
-      setState((current) => ({ ...current, error: error.response?.data?.message || 'Unable to update role' }))
+      setState((current) => ({
+        ...current,
+        error: error.response?.data?.message || "Unable to update role",
+      }));
     }
-  }
+  };
+
   const removeMember = async (userId) => {
     try {
       const { data } = await api.delete(`/projects/${id}/members/${userId}`);
@@ -186,6 +251,7 @@ export default function ProjectDetails() {
       }));
     }
   };
+
   const loadComments = async (taskId) => {
     try {
       const { data } = await api.get(`/tasks/${taskId}/comments`);
@@ -198,15 +264,18 @@ export default function ProjectDetails() {
       }));
     }
   };
+
   const addComment = async (event, taskId) => {
     event.preventDefault();
-    if (!comment.trim()) return;
+    if (!comment.trim() && !commentAttachments.length) return;
     try {
       const { data } = await api.post(`/tasks/${taskId}/comments`, {
         message: comment,
+        attachments: commentAttachments,
       });
-      setComments((items) => [...items, data.comment]);
+      setComments((items) => (items.some((c) => c._id === data.comment._id) ? items : [...items, data.comment]));
       setComment("");
+      setCommentAttachments([]);
     } catch (error) {
       setState((current) => ({
         ...current,
@@ -214,6 +283,7 @@ export default function ProjectDetails() {
       }));
     }
   };
+
   const deleteComment = async (item) => {
     if (!window.confirm("Delete this comment?")) return;
     try {
@@ -235,6 +305,7 @@ export default function ProjectDetails() {
         <p className="p-10 text-sm text-slate-500">Loading project...</p>
       </Layout>
     );
+
   if (!project)
     return (
       <Layout>
@@ -243,15 +314,22 @@ export default function ProjectDetails() {
         </p>
       </Layout>
     );
+
   return (
     <Layout>
       <section className="mx-auto max-w-7xl px-6 py-8 lg:px-10">
-        <Link
-          to="/projects"
-          className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900"
-        >
-          <ArrowLeft size={16} /> Back to projects
-        </Link>
+        <div className="flex items-center justify-between">
+          <Link
+            to="/projects"
+            className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900"
+          >
+            <ArrowLeft size={16} /> Back to projects
+          </Link>
+          <span className="flex items-center gap-1.5 rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800 border border-teal-200">
+            <Radio size={12} className="animate-pulse text-teal-600" /> Live Sync Active
+          </span>
+        </div>
+
         <header className="mt-6 flex flex-wrap items-start justify-between gap-5">
           <div>
             <span className="rounded-full bg-teal-100 px-3 py-1 text-xs font-semibold text-teal-800">
@@ -276,6 +354,7 @@ export default function ProjectDetails() {
             </button>
           </div>
         </header>
+
         {editing && (
           <form
             onSubmit={updateProject}
@@ -320,19 +399,25 @@ export default function ProjectDetails() {
             </button>
           </form>
         )}
+
         {(state.error || state.success) && (
           <p
-            className={`mt-5 rounded-xl px-4 py-3 text-sm ${state.error ? "bg-red-50 text-red-700" : "bg-teal-50 text-teal-800"}`}
+            className={`mt-5 rounded-xl px-4 py-3 text-sm ${
+              state.error ? "bg-red-50 text-red-700" : "bg-teal-50 text-teal-800"
+            }`}
           >
             {state.error || state.success}
           </p>
         )}
+
         <div className="mt-8 grid gap-5 lg:grid-cols-[1fr_0.35fr]">
           <section>
+            {/* Task Creation with AttachmentPicker */}
             <form
               onSubmit={createTask}
-              className="rounded-2xl border border-slate-200 bg-white p-5"
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
             >
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Add Task to Project</p>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <input
                   required
@@ -340,15 +425,15 @@ export default function ProjectDetails() {
                   onChange={(event) =>
                     setTaskForm({ ...taskForm, title: event.target.value })
                   }
-                  placeholder="Create a task"
-                  className="rounded-xl border border-slate-200 px-3 py-2.5"
+                  placeholder="Task title"
+                  className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
                 />
                 <select
                   value={taskForm.assignedTo}
                   onChange={(event) =>
                     setTaskForm({ ...taskForm, assignedTo: event.target.value })
                   }
-                  className="rounded-xl border border-slate-200 px-3 py-2.5"
+                  className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
                 >
                   <option value="">Unassigned</option>
                   {project.members.map((member) => (
@@ -362,7 +447,7 @@ export default function ProjectDetails() {
                   onChange={(event) =>
                     setTaskForm({ ...taskForm, priority: event.target.value })
                   }
-                  className="rounded-xl border border-slate-200 px-3 py-2.5"
+                  className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
                 >
                   {priorities.map((priority) => (
                     <option key={priority}>{priority}</option>
@@ -374,14 +459,23 @@ export default function ProjectDetails() {
                   onChange={(event) =>
                     setTaskForm({ ...taskForm, dueDate: event.target.value })
                   }
-                  className="rounded-xl border border-slate-200 px-3 py-2.5"
+                  className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
                 />
               </div>
+
+              <div className="mt-3 pt-3 border-t border-slate-100">
+                <AttachmentPicker
+                  attachments={taskForm.attachments}
+                  onChange={(newAttachments) => setTaskForm({ ...taskForm, attachments: newAttachments })}
+                />
+              </div>
+
               <button className="mt-3 flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-700">
-                <Plus size={16} /> Add task
+                <Plus size={16} /> Add Task
               </button>
             </form>
-            <div className="mt-4">
+
+            <div className="mt-6 flex items-center justify-between">
               <select
                 value={filter}
                 onChange={(event) => setFilter(event.target.value)}
@@ -393,16 +487,17 @@ export default function ProjectDetails() {
                 ))}
               </select>
             </div>
+
             <div className="mt-4 space-y-3">
               {tasks.length ? (
                 tasks.map((task) => (
                   <article
                     key={task._id}
-                    className="rounded-2xl border border-slate-200 bg-white p-5"
+                    className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <h2 className="font-semibold">{task.title}</h2>
+                        <h2 className="font-semibold text-slate-900">{task.title}</h2>
                         <p className="mt-1 text-sm text-slate-500">
                           {task.status} · {task.priority} priority
                         </p>
@@ -412,48 +507,58 @@ export default function ProjectDetails() {
                             ? ` · Due ${new Date(task.dueDate).toLocaleDateString()}`
                             : ""}
                         </p>
+
+                        {/* Task Attachments List */}
+                        <AttachmentList attachments={task.attachments} />
                       </div>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => loadComments(task._id)}
-                          className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                          className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 transition"
                           aria-label={`Comments for ${task.title}`}
                         >
                           <MessageSquare size={16} />
                         </button>
                         <button
                           onClick={() => deleteTask(task)}
-                          className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                          className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 transition"
                           aria-label={`Delete ${task.title}`}
                         >
                           <Trash2 size={16} />
                         </button>
                       </div>
                     </div>
+
                     <select
                       value={task.status}
                       onChange={(event) =>
                         updateStatus(task, event.target.value)
                       }
-                      className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600"
+                      className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 border border-slate-200"
                     >
                       {statuses.map((status) => (
                         <option key={status}>{status}</option>
                       ))}
                     </select>
+
+                    {/* Task Discussion Comments Thread */}
                     {selectedTaskId === task._id && (
-                      <div className="mt-4 border-t border-slate-100 pt-4">
-                        <div className="space-y-2">
+                      <div className="mt-4 border-t border-slate-100 pt-4 bg-slate-50/50 p-3 rounded-xl">
+                        <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Task Comments</p>
+                        <div className="space-y-3">
                           {comments.length ? (
                             comments.map((item) => (
                               <div
                                 key={item._id}
-                                className="flex items-start justify-between gap-3 text-sm"
+                                className="flex items-start justify-between gap-3 text-sm bg-white p-3 rounded-lg border border-slate-200"
                               >
-                                <p>
-                                  <b>{item.user.name}:</b> {item.message}
-                                </p>
-                                {String(item.user._id) ===
+                                <div>
+                                  <p className="text-slate-800">
+                                    <strong className="text-slate-900">{item.user?.name || "User"}:</strong> {item.message}
+                                  </p>
+                                  <AttachmentList attachments={item.attachments} />
+                                </div>
+                                {String(item.user?._id || item.user) ===
                                   String(user?._id || user?.id) && (
                                   <button
                                     onClick={() => deleteComment(item)}
@@ -466,27 +571,35 @@ export default function ProjectDetails() {
                               </div>
                             ))
                           ) : (
-                            <p className="text-sm text-slate-500">
-                              No comments yet.
+                            <p className="text-sm text-slate-500 italic">
+                              No comments yet. Be the first to comment.
                             </p>
                           )}
                         </div>
+
                         <form
                           onSubmit={(event) => addComment(event, task._id)}
-                          className="mt-3 flex gap-2"
+                          className="mt-4 space-y-2"
                         >
-                          <input
-                            value={comment}
-                            onChange={(event) => setComment(event.target.value)}
-                            placeholder="Add a comment"
-                            className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                          <div className="flex gap-2">
+                            <input
+                              value={comment}
+                              onChange={(event) => setComment(event.target.value)}
+                              placeholder="Add a comment..."
+                              className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                            />
+                            <button
+                              aria-label="Send comment"
+                              className="rounded-lg bg-teal-700 px-3 py-2 text-white hover:bg-teal-800 transition"
+                            >
+                              <Send size={15} />
+                            </button>
+                          </div>
+
+                          <AttachmentPicker
+                            attachments={commentAttachments}
+                            onChange={(newAttachments) => setCommentAttachments(newAttachments)}
                           />
-                          <button
-                            aria-label="Send comment"
-                            className="rounded-lg bg-teal-700 p-2 text-white"
-                          >
-                            <Send size={15} />
-                          </button>
                         </form>
                       </div>
                     )}
@@ -499,6 +612,8 @@ export default function ProjectDetails() {
               )}
             </div>
           </section>
+
+          {/* Members Sidebar */}
           <aside className="rounded-2xl border border-slate-200 bg-white p-5">
             <h2 className="font-semibold">Team members</h2>
             <div className="relative mt-4">
@@ -538,7 +653,20 @@ export default function ProjectDetails() {
                     <p className="text-sm font-medium">{member.name}</p>
                     <p className="text-xs text-slate-500">{member.email}</p>
                   </div>
-                  <select aria-label={`Role for ${member.name}`} value={project.memberRoles?.find((entry) => String(entry.user?._id || entry.user) === String(member._id))?.role || 'Member'} onChange={(event) => updateRole(member._id, event.target.value)} className="rounded-lg border border-slate-200 px-2 py-1 text-xs"><option>Admin</option><option>Manager</option><option>Member</option></select>
+                  <select
+                    aria-label={`Role for ${member.name}`}
+                    value={
+                      project.memberRoles?.find(
+                        (entry) => String(entry.user?._id || entry.user) === String(member._id)
+                      )?.role || "Member"
+                    }
+                    onChange={(event) => updateRole(member._id, event.target.value)}
+                    className="rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                  >
+                    <option>Admin</option>
+                    <option>Manager</option>
+                    <option>Member</option>
+                  </select>
                   {String(member._id) !== String(project.owner._id) && (
                     <button
                       onClick={() => removeMember(member._id)}

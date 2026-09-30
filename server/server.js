@@ -1,5 +1,6 @@
 require('dotenv').config()
 
+const http = require('http')
 const cors = require('cors')
 const express = require('express')
 const connectDatabase = require('./config/db')
@@ -11,12 +12,17 @@ const { errorHandler, notFound } = require('./middleware/errorMiddleware')
 const projectRoutes = require('./routes/projectRoutes')
 const taskRoutes = require('./routes/taskRoutes')
 const userRoutes = require('./routes/userRoutes')
+const { initSocket } = require('./utils/socket')
 
 const app = express()
+const server = http.createServer(app)
+initSocket(server)
+
 const port = process.env.PORT || 5000
 
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }))
-app.use(express.json())
+app.use(express.json({ limit: '15mb' }))
+app.use(express.urlencoded({ extended: true, limit: '15mb' }))
 
 app.get('/api/health', (request, response) => {
   response.json({ success: true, message: 'DevTrack API is running' })
@@ -34,7 +40,7 @@ app.use(errorHandler)
 
 const startServer = async () => {
   await connectDatabase()
-  app.listen(port, () => {
+  server.listen(port, () => {
     process.stdout.write(`DevTrack API listening on port ${port}\n`)
   })
 }

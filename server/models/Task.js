@@ -1,5 +1,12 @@
 const mongoose = require('mongoose')
 
+const attachmentSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  url: { type: String, required: true },
+  fileType: { type: String, default: 'other' },
+  size: { type: Number, default: 0 },
+}, { _id: true })
+
 const taskSchema = new mongoose.Schema(
   {
     title: { type: String, required: [true, 'Task title is required'], trim: true, maxlength: 160 },
@@ -10,6 +17,7 @@ const taskSchema = new mongoose.Schema(
     status: { type: String, enum: ['Todo', 'In Progress', 'Completed'], default: 'Todo' },
     priority: { type: String, enum: ['Low', 'Medium', 'High'], default: 'Medium' },
     dueDate: { type: Date, default: null },
+    attachments: { type: [attachmentSchema], default: [] },
   },
   { timestamps: true },
 )

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowRight, CheckCircle2, LockKeyhole, Mail } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CheckCircle2, LockKeyhole, Mail } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/useAuth'
 
@@ -22,7 +22,24 @@ export default function Login() {
     } finally { setSubmitting(false) }
   }
 
+  const fillDemo = () => {
+    setForm({ email: 'demo@devtrack.com', password: 'Demo123!' })
+  }
+
   return <AuthShell title="Welcome back" subtitle="Your team’s work, in one clear view.">
+    <div className="mb-6 rounded-xl border border-teal-200 bg-teal-50/80 p-3.5 text-xs text-teal-900 flex items-center justify-between">
+      <div>
+        <p className="font-semibold">Trying out DevTrack?</p>
+        <p className="text-teal-700">Use pre-configured demo account</p>
+      </div>
+      <button
+        type="button"
+        onClick={fillDemo}
+        className="rounded-lg bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 transition"
+      >
+        Fill Demo
+      </button>
+    </div>
     <form onSubmit={submit} className="space-y-5">
       <Field icon={Mail} label="Email" type="email" value={form.email} onChange={(value) => setForm({ ...form, email: value })} />
       <Field icon={LockKeyhole} label="Password" type="password" value={form.password} onChange={(value) => setForm({ ...form, password: value })} />
@@ -40,5 +57,5 @@ function Field({ icon: Icon, label, type, value, onChange }) {
 }
 
 function AuthShell({ title, subtitle, children }) {
-  return <main className="flex min-h-screen bg-[#f4f7f2] text-slate-900"><section className="hidden flex-1 flex-col justify-between bg-slate-900 p-12 text-white lg:flex"><div className="flex items-center gap-3 text-lg font-bold"><span className="grid size-9 place-items-center rounded-xl bg-teal-400 text-slate-950"><CheckCircle2 size={21} /></span>DevTrack</div><div className="max-w-lg"><p className="mb-5 text-sm font-semibold uppercase tracking-[0.22em] text-teal-300">Project intelligence</p><h2 className="text-5xl font-semibold leading-[1.05] tracking-tight">Make progress visible.</h2><p className="mt-6 max-w-md text-lg leading-8 text-slate-300">Plan work, align your team, and keep every delivery moving with less noise.</p></div><p className="text-sm text-slate-500">Built for focused teams.</p></section><section className="page-enter flex flex-1 items-center justify-center px-6 py-12"><div className="w-full max-w-md"><div className="mb-9 lg:hidden"><p className="text-xl font-bold">Dev<span className="text-teal-700">Track</span></p></div><p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-teal-700">Workspace access</p><h1 className="text-3xl font-semibold tracking-tight">{title}</h1><p className="mt-2 mb-8 text-slate-500">{subtitle}</p>{children}</div></section></main>
+  return <main className="flex min-h-screen bg-[#f4f7f2] text-slate-900"><section className="hidden flex-1 flex-col justify-between bg-slate-900 p-12 text-white lg:flex"><Link to="/" className="flex items-center gap-3 text-lg font-bold text-white group"><span className="grid size-9 place-items-center rounded-xl bg-teal-400 text-slate-950 transition group-hover:scale-105"><CheckCircle2 size={21} /></span>DevTrack</Link><div className="max-w-lg"><p className="mb-5 text-sm font-semibold uppercase tracking-[0.22em] text-teal-300">Project intelligence</p><h2 className="text-5xl font-semibold leading-[1.05] tracking-tight">Make progress visible.</h2><p className="mt-6 max-w-md text-lg leading-8 text-slate-300">Plan work, align your team, and keep every delivery moving with less noise.</p></div><p className="text-sm text-slate-500">Built for focused teams.</p></section><section className="page-enter flex flex-1 items-center justify-center px-6 py-12"><div className="w-full max-w-md"><Link to="/" className="mb-6 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 transition hover:border-teal-300 hover:text-teal-700 shadow-sm"><ArrowLeft size={15} /> Back to Home Page</Link><div className="mb-6 lg:hidden"><Link to="/" className="text-xl font-bold">Dev<span className="text-teal-700">Track</span></Link></div><p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-teal-700">Workspace access</p><h1 className="text-3xl font-semibold tracking-tight">{title}</h1><p className="mt-2 mb-8 text-slate-500">{subtitle}</p>{children}</div></section></main>
 }
