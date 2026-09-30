@@ -1,69 +1,139 @@
 # DevTrack
 
-DevTrack is a production-style project management and team collaboration platform. It features a polished landing page, interactive Kanban boards, role-based access control (RBAC), audit activity trails, and real-time project metrics — built with a complete JavaScript full-stack: React, Vite, Tailwind CSS, Node.js, Express, MongoDB, and JWT authentication.
+DevTrack is a full-stack project management application built for teams that need to plan work, assign responsibilities, track tasks, and keep an internal record of project changes. The app combines a React frontend with an Express and MongoDB backend, giving users a modern dashboard experience with role-based access control, activity logs, comments, and protected project workspaces.
+
+## Project Summary
+
+This project is designed to function like a lightweight SaaS project tracker. It is focused on the core collaboration workflow that most teams need:
+
+- Create and manage projects
+- Invite or add team members to each project
+- Assign tasks to users and update task progress
+- Track work by status and priority
+- Add comments to tasks for collaboration
+- Record activity so project changes are visible
+- Restrict actions based on roles and ownership
+- Provide a clean dashboard for overview and quick access
+
+It is well-suited for portfolio work, internal tooling demos, and learning how to build a full-stack application with secure authentication and business logic in a real-world structure.
+
+## Why This Project Exists
+
+DevTrack demonstrates the combination of a client-facing application and a secure backend API. Instead of a single app with local state only, the project uses:
+
+- A client application for the UI and interactions
+- An API layer for authentication and business logic
+- A MongoDB database for persistent data storage
+- JWT-based access control for protected routes
+- Role-based permissions for team operations
+
+This makes it a practical example of how a production-style SaaS app is split into separate frontend and backend responsibilities.
 
 ## Features
 
-- **Landing page** — Animated hero section, interactive app preview tabs (Kanban, Metrics, RBAC, Audit Log), features grid, and call-to-action before login
-- User registration, login, logout, and session restoration
-- JWT-protected API and frontend routes
-- bcrypt password hashing with passwords excluded from normal responses
-- Project creation, editing, status changes, and deletion
-- Project team member search, adding, removal, and role management
-- Project roles: `Admin`, `Manager`, and `Member`
-- Task creation, editing, deletion, assignment, priorities, statuses, and due dates
-- Kanban-style task board with `Todo`, `In Progress`, and `Completed` columns
-- Task search and filtering by title, project, status, and priority
-- Task comments with ownership and project-owner deletion permissions
-- Persisted activity history for project, task, member, and comment changes
-- Dashboard statistics, completion progress, recent projects, and due-soon tasks
-- Profile editing with avatar URL support and initials fallback
-- Responsive desktop, tablet, and mobile layouts
-- Loading, error, empty, success, and disabled-submit states
-- Repeatable demo seed data
-- Automated API tests using Node.js test runner and Supertest
+### Authentication and Session Handling
 
-## Technology Stack
+- User registration and login
+- Password hashing with bcrypt
+- JWT generation and validation
+- Protected frontend routes
+- Backend protection for sensitive API endpoints
+- Current user retrieval via the authenticated session
+
+### Project Management
+
+- Create new projects
+- Update project title, description, and status
+- Delete projects if you are the owner
+- View all projects the user belongs to
+- Add and remove project members
+- Assign project roles such as Admin, Manager, and Member
+- Prevent unauthorized users from accessing restricted project data
+
+### Task Management
+
+- Create tasks under a project
+- Update task title, description, status, priority, assignee, and dates
+- View project-specific task lists
+- Search and filter tasks by project, status, priority, or keyword
+- Delete tasks as authorized
+
+### Collaboration
+
+- Leave comments on tasks
+- View comments by task
+- Control comment deletion permissions based on ownership and project authority
+- Track actions performed by users in activity history
+
+### Activity and Reporting
+
+- Store activity records for key actions
+- Log project creation, updates, member changes, task updates, and comments
+- Display recent activity for project users
+- Provide dashboard summaries for project activity and work status
+
+### Dashboard Experience
+
+- Overview of accessible projects
+- Simple summary metrics for active work
+- Project progress awareness
+- Quick access to task and project information
+- Responsive layout for different screen sizes
+
+### Demo / Seed Data
+
+- Seed demo user account and sample projects
+- Populate demo tasks and comments for quick testing
+- Helpful for local development and portfolio demonstrations
+
+## Tech Stack
 
 ### Frontend
 
-- React 19 with functional components and hooks
+- React 19
 - Vite
 - React Router DOM
 - Axios
-- Tailwind CSS v4
+- Tailwind CSS
 - Lucide React icons
+- Socket.IO client
 
 ### Backend
 
 - Node.js
 - Express 5
-- MongoDB Atlas or local MongoDB
-- Mongoose
+- MongoDB with Mongoose
+- JWT authentication
 - bcrypt
-- jsonwebtoken
-- cors and dotenv
-- Supertest and Node's built-in test runner
+- CORS and dotenv
+- Socket.IO
+- Supertest and Node test runner
 
 ## Architecture
 
 ```text
+User Browser
+   |
+   | HTTP requests + JWT
+   v
 React Frontend
-      |
-      | Axios HTTP requests with JWT
-      v
-REST API
-      |
-      | Express routers, controllers, middleware
-      v
-Node.js + Express
-      |
-      | Mongoose models and queries
-      v
-MongoDB Atlas
+   |
+   | Axios API calls
+   v
+Express API
+   |
+   | Authentication middleware
+   | Role checks
+   | Controllers and route handling
+   v
+MongoDB
+   |
+   | Mongoose models and collections
+   v
+Users, Projects, Tasks, Comments, Activity
 ```
 
-The frontend is responsible for routing, forms, state, API integration, and user feedback. The backend owns validation, authentication, authorization, business logic, and persistence. MongoDB stores users, projects, tasks, comments, and activity records.
+The frontend is responsible for user interactions, page flow, rendering, and client-side state. The server is responsible for validating requests, enforcing authorization rules, processing business logic, and writing to MongoDB.
 
 ## Project Structure
 
@@ -71,31 +141,12 @@ The frontend is responsible for routing, forms, state, API integration, and user
 DevTrack/
 ├── client/
 │   ├── public/
-│   │   ├── favicon.svg
-│   │   └── icons.svg
 │   ├── src/
 │   │   ├── api/
-│   │   │   ├── axios.js
-│   │   │   └── socket.js
 │   │   ├── components/
-│   │   │   ├── common/
-│   │   │   │   ├── AttachmentPicker.jsx
-│   │   │   │   └── AvatarStack.jsx
-│   │   │   └── layout/Layout.jsx
 │   │   ├── context/
-│   │   │   ├── AuthContext.jsx
-│   │   │   ├── auth-context.js
-│   │   │   └── useAuth.js
 │   │   ├── pages/
-│   │   │   ├── Landing.jsx        <- new landing page (entry point)
-│   │   │   ├── Dashboard.jsx
-│   │   │   ├── Login.jsx
-│   │   │   ├── ProjectDetails.jsx
-│   │   │   ├── Projects.jsx
-│   │   │   ├── Profile.jsx
-│   │   │   ├── Register.jsx
-│   │   │   └── Tasks.jsx
-│   │   ├── routes/ProtectedRoute.jsx
+│   │   ├── routes/
 │   │   ├── App.jsx
 │   │   ├── index.css
 │   │   └── main.jsx
@@ -104,35 +155,13 @@ DevTrack/
 │   ├── vercel.json
 │   └── vite.config.js
 ├── server/
-│   ├── config/db.js
+│   ├── config/
 │   ├── controllers/
-│   │   ├── activityController.js
-│   │   ├── authController.js
-│   │   ├── commentController.js
-│   │   ├── projectController.js
-│   │   ├── taskController.js
-│   │   └── userController.js
-│   ├── middleware/authMiddleware.js
-│   ├── middleware/errorMiddleware.js
+│   ├── middleware/
 │   ├── models/
-│   │   ├── Activity.js
-│   │   ├── Comment.js
-│   │   ├── Project.js
-│   │   ├── Task.js
-│   │   └── User.js
 │   ├── routes/
-│   │   ├── activityRoutes.js
-│   │   ├── authRoutes.js
-│   │   ├── commentDeleteRoutes.js
-│   │   ├── commentRoutes.js
-│   │   ├── projectRoutes.js
-│   │   ├── taskRoutes.js
-│   │   └── userRoutes.js
-│   ├── test/api.test.js
+│   ├── test/
 │   ├── utils/
-│   │   ├── generateToken.js
-│   │   ├── recordActivity.js
-│   │   └── socket.js
 │   ├── .env.example
 │   ├── package.json
 │   ├── seed.js
@@ -140,106 +169,269 @@ DevTrack/
 ├── .gitignore
 ├── package.json
 ├── render.yaml
-└── README.md
+├── README.md
+└── client/README.md
 ```
 
-## Requirements
+## Key Files
 
-- Node.js 20 or newer recommended
+### Root
+
+- `package.json` contains the root scripts for starting the frontend and backend
+- `render.yaml` configures deployment for the backend service
+
+### Client
+
+- `client/src/App.jsx` wires the app routes and auth provider
+- `client/src/pages/*` contains the route pages
+- `client/src/context/AuthContext.jsx` handles login state and auth context
+- `client/src/api/axios.js` centralizes API communication
+
+### Server
+
+- `server/server.js` creates the Express app and mounts API routes
+- `server/controllers/*` hold route logic for auth, projects, tasks, comments, and users
+- `server/middleware/authMiddleware.js` validates JWT tokens
+- `server/models/*` define the MongoDB documents and schemas
+- `server/routes/*` define the backend endpoints
+- `server/seed.js` populates demo data
+- `server/test/api.test.js` verifies a few important behaviors
+
+## Prerequisites
+
+Before running DevTrack locally, make sure you have the following installed:
+
+- Node.js 20 or newer
 - npm
-- MongoDB Atlas account or local MongoDB instance
-- Git for version control
+- MongoDB running locally or a MongoDB Atlas cluster
+- Git
 
 ## Installation
 
-From the repository root:
+From the repository root, install each app separately:
 
 ```powershell
 npm install --prefix client
 npm install --prefix server
+```
+
+Then create the environment files:
+
+```powershell
 Copy-Item server\.env.example server\.env
 Copy-Item client\.env.example client\.env
 ```
 
-Edit `server/.env` and set a valid MongoDB connection string and JWT secret. The client default API URL is already configured for local development.
-
 ## Environment Variables
 
-### Server: `server/.env`
+### Server configuration
+
+Create `server/.env` with values like:
 
 ```env
 PORT=5000
 NODE_ENV=development
-MONGODB_URI=mongodb+srv://USERNAME:PASSWORD@CLUSTER.mongodb.net/devtrack?retryWrites=true&w=majority
+MONGODB_URI=mongodb://127.0.0.1:27017/devtrack
 JWT_SECRET=replace-with-a-long-random-secret
 JWT_EXPIRE=7d
 CLIENT_URL=http://localhost:5173
 ```
 
-### Client: `client/.env`
+### Client configuration
+
+Create `client/.env` with:
 
 ```env
 VITE_API_URL=http://localhost:5000/api
 ```
 
-Never commit `.env` files. The `.gitignore` excludes them while allowing `.env.example` templates.
+### Notes
 
-## Running Locally
+- `MONGODB_URI` can point to either a local MongoDB instance or Atlas
+- `JWT_SECRET` should be long and unpredictable
+- `CLIENT_URL` must match your frontend origin during local or production development
+- Never commit `.env` files to Git
 
-Start the backend from the repository root:
+## Running the Application
+
+### Start the backend
 
 ```powershell
 npm run dev:server
 ```
 
-Start the frontend in a second terminal:
+The backend runs on port 5000 by default.
+
+### Start the frontend
+
+Open a second terminal and run:
 
 ```powershell
 npm run dev:client
 ```
 
-Open `http://localhost:5173`. You will land on the **Landing page** first. The backend health endpoint is `http://localhost:5000/api/health`.
+This starts the Vite dev server. By default, the app is available at:
 
-If the terminal is already inside `server`, use `npm run dev` instead of `npm run dev:server`.
+```text
+http://localhost:5173
+```
+
+### Health check
+
+You can confirm the backend is running with:
+
+```text
+http://localhost:5000/api/health
+```
+
+The expected response is:
+
+```json
+{
+  "success": true,
+  "message": "DevTrack API is running"
+}
+```
 
 ## Demo Data
 
-Run the seed command against a development database:
+The project includes a seed script that creates a demo user and sample project data.
+
+Run:
 
 ```powershell
 npm --prefix server run seed
 ```
 
-Demo credentials:
+Demo login details:
 
 ```text
 Email: demo@devtrack.com
 Password: Demo123!
 ```
 
-The seed script replaces records owned by the demo account. It should not be used against a production database.
+This script deletes the old demo user’s project data before recreating it, so it should only be used in a development database.
 
-## Frontend Routes
+## Core Data Model
+
+### User
+
+A user has:
+
+- name
+- email
+- password hash
+- avatar
+- createdAt / updatedAt
+
+### Project
+
+Each project is associated with:
+
+- title
+- description
+- status
+- owner
+- members
+- memberRoles
+- timestamps
+
+### Task
+
+Each task contains:
+
+- title
+- description
+- project
+- status
+- priority
+- createdBy
+- assignedTo
+- dueDate
+- timestamps
+
+### Comment
+
+Comments include:
+
+- task
+- user
+- message
+- timestamps
+
+### Activity
+
+Activity logs track actions like:
+
+- project created
+- project updated
+- task created
+- task updated
+- task deleted
+- member added
+- member removed
+- comment added
+
+## Application Routes
+
+### Public route
 
 ```text
-/              <- Landing page (public entry point)
-/login         <- Sign in
-/register      <- Create account
-/dashboard     <- protected
-/projects      <- protected
-/projects/:id  <- protected
-/tasks         <- protected
-/profile       <- protected
+/            Landing page
+/login       Login
+/register    Register account
 ```
 
-Unauthenticated users visiting protected routes are redirected to `/`. The Login and Register pages include a "Back to Home Page" button to return to the landing page.
+### Protected routes
 
-## REST API
+```text
+/dashboard
+/projects
+/projects/:id
+/tasks
+/profile
+```
 
-All endpoints use the `/api` base path. Protected endpoints require:
+Unauthenticated users are redirected away from protected pages and sent back to the landing page.
+
+## Authentication and Authorization Model
+
+DevTrack uses JWT-based authentication.
+
+### Authentication flow
+
+1. A user registers or logs in.
+2. The server checks the submitted credentials.
+3. The server hashes passwords before storing them.
+4. The backend creates and returns a JWT.
+5. The frontend stores the token and includes it in future requests.
+6. The server verifies the token in protected routes.
+7. User identity is attached to the request for authorization checks.
+
+### Authorization rules
+
+The project role model is:
+
+- Admin: project owner; can manage the project and change roles
+- Manager: can manage project operations and members
+- Member: can access project content and collaborate on tasks
+
+The project owner is always normalized to Admin, and permissions are enforced on the backend rather than only in the UI.
+
+## API Reference
+
+The API is mounted under `/api`.
+
+All protected endpoints require this header:
 
 ```http
 Authorization: Bearer YOUR_JWT
+```
+
+### Health
+
+```text
+GET /api/health
 ```
 
 ### Authentication
@@ -273,7 +465,7 @@ PUT    /api/tasks/:id
 DELETE /api/tasks/:id
 ```
 
-Supported filters:
+Supported task filtering examples:
 
 ```text
 /api/tasks?project=PROJECT_ID
@@ -282,18 +474,39 @@ Supported filters:
 /api/tasks?search=dashboard
 ```
 
-### Comments, users, and activity
+### Comments
 
 ```text
-GET    /api/tasks/:taskId/comments
-POST   /api/tasks/:taskId/comments
+GET  /api/tasks/:taskId/comments
+POST /api/tasks/:taskId/comments
 DELETE /api/comments/:id
-GET    /api/users?search=name-or-email
-PUT    /api/users/profile
-GET    /api/activity
 ```
 
-API errors use:
+### Users
+
+```text
+GET /api/users?search=name-or-email
+PUT /api/users/profile
+```
+
+### Activity
+
+```text
+GET /api/activity
+```
+
+## Typical API Response Format
+
+Success response:
+
+```json
+{
+  "success": true,
+  "message": "Operation completed successfully"
+}
+```
+
+Error response:
 
 ```json
 {
@@ -302,44 +515,23 @@ API errors use:
 }
 ```
 
-## Role-Based Access Control
-
-Roles are stored per project membership:
-
-- `Admin`: project owner; can update/delete projects, manage members, and change roles.
-- `Manager`: can update projects and manage members.
-- `Member`: can view the project and work with tasks and comments.
-
-The project owner is always normalized to `Admin`. New members default to `Member`. The backend enforces permissions independently of frontend controls.
-
-## Authentication and Security
-
-1. The client submits credentials to the Express API.
-2. The User model hashes new passwords with bcrypt before saving.
-3. Login compares submitted passwords with `bcrypt.compare()`.
-4. The server signs a JWT containing the user ID.
-5. Axios automatically sends the JWT in the Bearer header.
-6. Express middleware verifies the token and attaches `request.user`.
-7. Controllers enforce membership and RBAC permissions.
-8. Environment variables keep secrets out of source control.
-
-For a higher-security production session design, replace local-storage JWTs with secure HttpOnly cookies and add CSRF protection.
-
-## Activity History
-
-Activity records are persisted in MongoDB for project creation/updates, task creation/updates/deletion, member changes, and comment changes. The dashboard loads the latest activity for projects the authenticated user belongs to.
-
 ## Testing
 
-Run automated API tests:
+Run the automated backend tests:
 
 ```powershell
 npm --prefix server test
 ```
 
-The suite covers health checks, protected routes, registration validation, 404 handling, and project owner role normalization.
+The test suite checks:
 
-Run frontend checks:
+- health endpoint health
+- protected route rejection without auth
+- validation on registration
+- 404 handling for unknown routes
+- project owner role normalization
+
+Run frontend validation:
 
 ```powershell
 npm run build:client
@@ -348,89 +540,94 @@ npm --prefix client run lint
 
 ## Deployment
 
-### MongoDB Atlas
-
-Create a database user, allow the deployment service network access, and copy the driver connection string. Use a strong password and URL-encode special characters in the password.
-
 ### Render Backend
 
-The repository includes `render.yaml`.
+This repo includes a `render.yaml` file for a Node backend deployment.
 
-```text
-Root directory: server
-Runtime: Node
-Build command: npm install
-Start command: npm start
-```
-
-Configure:
+Recommended production environment variables:
 
 ```env
 NODE_ENV=production
-MONGODB_URI=your-atlas-connection-string
-JWT_SECRET=your-production-secret
+MONGODB_URI=your-atlas-or-hosted-mongodb-connection-string
+JWT_SECRET=your-secure-secret
 JWT_EXPIRE=7d
 CLIENT_URL=https://your-vercel-domain.vercel.app
 ```
 
-Verify `https://your-render-service.onrender.com/api/health`.
-
 ### Vercel Frontend
 
-The repository includes `client/vercel.json` for SPA route refreshes.
+The frontend is configured to be deployed as a Vite app.
 
-```text
-Root directory: client
-Framework: Vite
-Build command: npm run build
-Output directory: dist
-```
-
-Configure:
+Recommended environment variable:
 
 ```env
 VITE_API_URL=https://your-render-service.onrender.com/api
 ```
 
-After deployment, update Render's `CLIENT_URL` to the exact Vercel origin without a route suffix such as `/login`.
+### Deployment Notes
 
-Pushing to the `main` branch automatically triggers a redeploy on both Vercel (frontend) and Render (backend).
+- Keep the backend and frontend origins aligned with the CORS config
+- Set the exact frontend domain in `CLIENT_URL`
+- Use a production MongoDB connection string, not a local dev database
+- Ensure `server/.env` values are never committed to Git
 
-## Git and GitHub
+## Security Notes
 
-Useful commits include:
+- Passwords are hashed before being saved
+- JWTs are required for protected endpoints
+- Input validation is enforced on the backend
+- Role permission checks are performed server-side
+- CORS restricts API access to the configured frontend origin
+- Secrets are stored in environment variables instead of source files
 
-```text
-Initial project setup
-Add MongoDB database configuration
-Implement user authentication
-Add JWT authorization middleware
-Create project REST APIs
-Create task and comment APIs
-Build responsive dashboard UI
-Add project RBAC
-Add activity history and API tests
-Add landing page with hero, interactive preview, and features grid
-Prepare application for deployment
-```
+## Troubleshooting
 
-Never commit `.env` files, MongoDB credentials, JWT secrets, `node_modules`, or unnecessary build output.
+### MongoDB connection errors
 
-## Interview Talking Points
+Check that:
 
-- **Landing page UX:** Glassmorphic dark-mode design with animated hero, tabbed interactive app preview, and clear call-to-action flow before login.
-- **React:** reusable component-based UI and state-driven rendering.
-- **Node.js and Express:** JavaScript across the stack with simple REST routing and middleware.
-- **MongoDB:** flexible document storage mapped to JavaScript objects through Mongoose.
-- **bcrypt:** prevents plain-text password storage and securely compares login attempts.
-- **JWT:** stateless authentication for protected API routes.
-- **Axios:** centralized API communication and automatic authorization headers.
-- **Security:** password hashing, JWT verification, protected routes, RBAC, validation, CORS, environment variables, and centralized errors.
+- MongoDB is running locally or the Atlas connection string is valid
+- The connection string includes the proper credentials and database name
+- The network allows access in Atlas or your hosting environment
+
+### JWT auth errors
+
+Check that:
+
+- The client is storing the token after login
+- The `Authorization` header is being sent as `Bearer <token>`
+- The token is not expired
+- `JWT_SECRET` matches between environments
+
+### Frontend not loading after login
+
+Check that:
+
+- `VITE_API_URL` points to the correct backend base URL
+- The backend is running
+- The frontend dev server is running on port 5173
+- The browser is not blocked by CORS issues
+
+### Seed script issues
+
+Make sure:
+
+- `MONGODB_URI` is configured before running the seed script
+- You are using a development database
+- You understand that the seed script will replace demo data
 
 ## Future Improvements
 
-- HttpOnly cookie-based sessions
-- Email invitations and password reset
-- Advanced reporting and filters
-- CI pipeline with coverage and deployment previews
-- End-to-end browser tests
+Potential enhancements include:
+
+- HttpOnly cookie-based authentication
+- Password reset and email verification
+- Advanced reporting and analytics
+- Team invitations and permission invite workflows
+- CI/CD pipeline with automated checks and previews
+- End-to-end UI testing
+- More granular task views and filtering options
+
+## License
+
+This project is intended for learning, portfolio use, and local development unless otherwise specified by the repository owner.
