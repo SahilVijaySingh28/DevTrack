@@ -427,16 +427,10 @@ Never commit `.env` files, MongoDB credentials, JWT secrets, `node_modules`, or 
 - **Axios:** centralized API communication and automatic authorization headers.
 - **Security:** password hashing, JWT verification, protected routes, RBAC, validation, CORS, environment variables, and centralized errors.
 
-## Screenshots
-
-Add screenshots of the landing page, login page, dashboard, project details, Kanban board, and profile page before publishing the project in a portfolio.
-
 ## Future Improvements
 
-- WebSocket or Socket.IO real-time updates
 - HttpOnly cookie-based sessions
 - Email invitations and password reset
-- File attachments and notifications
 - Advanced reporting and filters
 - CI pipeline with coverage and deployment previews
 - End-to-end browser tests
