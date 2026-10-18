@@ -3,8 +3,8 @@ const User = require('../models/User')
 
 const protect = async (request, response, next) => {
   try {
-    const authorization = request.headers.authorization
-    if (!authorization || !authorization.startsWith('Bearer ')) {
+    const token = request.cookies?.devtrack_token
+    if (!token) {
       return response.status(401).json({ success: false, message: 'Authentication required' })
     }
 
@@ -12,7 +12,6 @@ const protect = async (request, response, next) => {
       return response.status(500).json({ success: false, message: 'Authentication is not configured' })
     }
 
-    const token = authorization.split(' ')[1]
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
     const user = await User.findById(decoded.userId)
 

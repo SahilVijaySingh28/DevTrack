@@ -1,5 +1,14 @@
 const User = require('../models/User')
+const jwt = require('jsonwebtoken')
 const generateToken = require('../utils/generateToken')
+
+const authCookieName = 'devtrack_token'
+const authCookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  path: '/',
+}
 
 const publicUser = (user) => ({
   id: user._id,
@@ -9,6 +18,16 @@ const publicUser = (user) => ({
   createdAt: user.createdAt,
   updatedAt: user.updatedAt,
 })
+
+const sendAuthenticatedUser = (response, status, user) => {
+  const token = generateToken(user._id)
+  const { exp } = jwt.decode(token)
+  response.cookie(authCookieName, token, {
+    ...authCookieOptions,
+    maxAge: Math.max(0, exp * 1000 - Date.now()),
+  })
+  return response.status(status).json({ success: true, user: publicUser(user) })
+}
 
 const register = async (request, response, next) => {
   try {
@@ -24,7 +43,7 @@ const register = async (request, response, next) => {
     }
 
     const user = await User.create({ name, email: normalizedEmail, password })
-    return response.status(201).json({ success: true, user: publicUser(user), token: generateToken(user._id) })
+    return sendAuthenticatedUser(response, 201, user)
   } catch (error) {
     next(error)
   }
@@ -42,7 +61,7 @@ const login = async (request, response, next) => {
       return response.status(401).json({ success: false, message: 'Invalid email or password' })
     }
 
-    return response.json({ success: true, user: publicUser(user), token: generateToken(user._id) })
+    return sendAuthenticatedUser(response, 200, user)
   } catch (error) {
     next(error)
   }
@@ -52,4 +71,9 @@ const getCurrentUser = (request, response) => {
   response.json({ success: true, user: publicUser(request.user) })
 }
 
-module.exports = { register, login, getCurrentUser }
+const logout = (request, response) => {
+  response.clearCookie(authCookieName, authCookieOptions)
+  response.json({ success: true })
+}
+
+module.exports = { register, login, getCurrentUser, logout }

@@ -1,9 +1,11 @@
 require('dotenv').config()
 
 const http = require('http')
+const cookieParser = require('cookie-parser')
 const cors = require('cors')
 const express = require('express')
 const connectDatabase = require('./config/db')
+const { requireTrustedOrigin } = require('./middleware/csrfMiddleware')
 const authRoutes = require('./routes/authRoutes')
 const activityRoutes = require('./routes/activityRoutes')
 const commentDeleteRoutes = require('./routes/commentDeleteRoutes')
@@ -20,9 +22,11 @@ initSocket(server)
 
 const port = process.env.PORT || 5000
 
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }))
+app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true }))
 app.use(express.json({ limit: '15mb' }))
 app.use(express.urlencoded({ extended: true, limit: '15mb' }))
+app.use(cookieParser())
+app.use(requireTrustedOrigin)
 
 app.get('/api/health', (request, response) => {
   response.json({ success: true, message: 'DevTrack API is running' })

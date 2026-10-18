@@ -22,6 +22,29 @@ test('protected activity route rejects missing authentication', async () => {
   assert.equal(response.body.message, 'Authentication required')
 })
 
+test('protected routes reject an invalid JWT from the auth cookie', async () => {
+  const response = await request(app)
+    .get('/api/projects')
+    .set('Cookie', 'devtrack_token=invalid')
+  assert.equal(response.status, 401)
+  assert.equal(response.body.message, 'Invalid or expired token')
+})
+
+test('logout clears the HttpOnly auth cookie', async () => {
+  const response = await request(app).post('/api/auth/logout')
+  assert.equal(response.status, 200)
+  assert.match(response.headers['set-cookie'][0], /devtrack_token=;/)
+  assert.match(response.headers['set-cookie'][0], /HttpOnly/i)
+})
+
+test('state-changing requests reject untrusted origins', async () => {
+  const response = await request(app)
+    .post('/api/auth/logout')
+    .set('Origin', 'https://untrusted.example')
+  assert.equal(response.status, 403)
+  assert.equal(response.body.message, 'Untrusted request origin')
+})
+
 test('registration validates required fields', async () => {
   const response = await request(app).post('/api/auth/register').send({ email: 'missing@example.com' })
   assert.equal(response.status, 400)
