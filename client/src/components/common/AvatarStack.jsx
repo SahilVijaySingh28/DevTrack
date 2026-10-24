@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 export default function AvatarStack({ members = [], max = 4, size = 'md' }) {
   if (!members || !members.length) return null
 
@@ -27,17 +29,10 @@ export default function AvatarStack({ members = [], max = 4, size = 'md' }) {
           <div
             key={member._id || idx}
             title={`${name} (${member.email || ''})`}
-            className={`relative inline-flex shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-teal-600 to-emerald-500 font-bold text-white ring-white shadow-sm transition hover:z-10 hover:scale-110 ${badgeSize}`}
+            className={`relative inline-flex shrink-0 items-center justify-center rounded-full bg-teal-700 font-bold text-white ring-white shadow-sm transition hover:z-10 hover:scale-110 ${badgeSize}`}
           >
             {member.avatar ? (
-              <img
-                src={member.avatar}
-                alt={name}
-                className="size-full rounded-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none'
-                }}
-              />
+              <MemberAvatar src={member.avatar} name={name} initials={initials} />
             ) : (
               <span>{initials}</span>
             )}
@@ -54,5 +49,20 @@ export default function AvatarStack({ members = [], max = 4, size = 'md' }) {
         </div>
       )}
     </div>
+  )
+}
+
+function MemberAvatar({ src, name, initials }) {
+  const [failedSrc, setFailedSrc] = useState('')
+
+  return failedSrc === src ? (
+    <span>{initials}</span>
+  ) : (
+    <img
+      src={src}
+      alt={name}
+      className="size-full rounded-full object-cover"
+      onError={() => setFailedSrc(src)}
+    />
   )
 }

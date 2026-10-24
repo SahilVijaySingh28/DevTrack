@@ -5,10 +5,16 @@ const notFound = (request, response) => {
 const errorHandler = (error, request, response, next) => {
   if (response.headersSent) return next(error)
 
-  const statusCode = error.name === 'ValidationError' || error.name === 'CastError' ? 400 : error.code === 11000 ? 409 : 500
+  const statusCode = error.name === 'ValidationError' || error.name === 'CastError' || error.status === 400
+    ? 400
+    : error.status === 413
+      ? 413
+      : error.name === 'VersionError' || error.code === 11000 ? 409 : 500
   const message = statusCode === 500 && process.env.NODE_ENV === 'production'
     ? 'Internal server error'
-    : error.message
+    : error.name === 'VersionError'
+      ? 'This record changed while you were editing it. Reload and try again.'
+      : error.message
 
   response.status(statusCode).json({ success: false, message })
 }

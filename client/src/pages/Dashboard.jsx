@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   Activity as ActivityIcon,
   AlertCircle,
@@ -26,18 +26,36 @@ const statStyles = {
   amber: 'from-amber-500/20 to-orange-500/10 text-amber-600 border-amber-200',
 }
 
+const normalizeTaskSummary = (data) => ({
+  total: data.summary?.total ?? 0,
+  completed: data.summary?.completed ?? 0,
+  inProgress: data.summary?.inProgress ?? 0,
+  dueSoon: data.dueSoon ?? data.summary?.dueSoon ?? [],
+})
+
 export default function Dashboard() {
   const { user } = useAuth()
   const [projects, setProjects] = useState([])
-  const [tasks, setTasks] = useState([])
+  const [projectCount, setProjectCount] = useState(0)
+  const [taskSummary, setTaskSummary] = useState({ total: 0, completed: 0, inProgress: 0, dueSoon: [] })
   const [activities, setActivities] = useState([])
   const [state, setState] = useState({ loading: true, error: '' })
 
+  const refreshSummary = useCallback(async () => {
+    try {
+      const { data } = await api.get('/tasks/summary')
+      setTaskSummary(normalizeTaskSummary(data))
+    } catch (error) {
+      setState((current) => ({ ...current, error: error.response?.data?.message || 'Unable to refresh task summary' }))
+    }
+  }, [])
+
   useEffect(() => {
-    Promise.all([api.get('/projects'), api.get('/tasks'), api.get('/activity')])
-      .then(([projectResponse, taskResponse, activityResponse]) => {
+    Promise.all([api.get('/projects'), api.get('/tasks/summary'), api.get('/activity')])
+      .then(([projectResponse, summaryResponse, activityResponse]) => {
         setProjects(projectResponse.data.projects)
-        setTasks(taskResponse.data.tasks)
+        setProjectCount(projectResponse.data.pagination.total)
+        setTaskSummary(normalizeTaskSummary(summaryResponse.data))
         setActivities(activityResponse.data.activities)
       })
       .catch((error) =>
@@ -46,47 +64,36 @@ export default function Dashboard() {
       .finally(() => setState((current) => ({ ...current, loading: false })))
   }, [])
 
+  useEffect(() => {
+    projects.forEach((project) => socket.emit('join_project', project._id))
+    return () => projects.forEach((project) => socket.emit('leave_project', project._id))
+  }, [projects])
+
   // Real-Time Socket.IO Updates
   useEffect(() => {
     const handleActivityCreated = (newActivity) => {
       setActivities((prev) => (prev.some((a) => a._id === newActivity._id) ? prev : [newActivity, ...prev]))
     }
 
-    const handleTaskCreated = (newTask) => {
-      setTasks((prev) => (prev.some((t) => t._id === newTask._id) ? prev : [newTask, ...prev]))
-    }
-
-    const handleTaskUpdated = (updatedTask) => {
-      setTasks((prev) => prev.map((t) => (t._id === updatedTask._id ? updatedTask : t)))
-    }
-
-    const handleTaskDeleted = ({ taskId }) => {
-      setTasks((prev) => prev.filter((t) => t._id !== taskId))
-    }
+    const refreshTaskSummary = () => refreshSummary()
 
     socket.on('activity_created', handleActivityCreated)
-    socket.on('task_created', handleTaskCreated)
-    socket.on('task_updated', handleTaskUpdated)
-    socket.on('task_deleted', handleTaskDeleted)
+    socket.on('task_created', refreshTaskSummary)
+    socket.on('task_updated', refreshTaskSummary)
+    socket.on('task_deleted', refreshTaskSummary)
 
     return () => {
       socket.off('activity_created', handleActivityCreated)
-      socket.off('task_created', handleTaskCreated)
-      socket.off('task_updated', handleTaskUpdated)
-      socket.off('task_deleted', handleTaskDeleted)
+      socket.off('task_created', refreshTaskSummary)
+      socket.off('task_updated', refreshTaskSummary)
+      socket.off('task_deleted', refreshTaskSummary)
     }
-  }, [])
+  }, [refreshSummary])
 
-  const completed = tasks.filter((task) => task.status === 'Completed').length
-  const inProgress = tasks.filter((task) => task.status === 'In Progress').length
-  const completion = tasks.length ? Math.round((completed / tasks.length) * 100) : 0
-
-  const deadline = new Date()
-  deadline.setDate(deadline.getDate() + 7)
-  const dueSoon = tasks
-    .filter((task) => task.dueDate && task.status !== 'Completed' && new Date(task.dueDate) <= deadline)
-    .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
-    .slice(0, 5)
+  const completed = taskSummary.completed
+  const inProgress = taskSummary.inProgress
+  const completion = taskSummary.total ? Math.round((completed / taskSummary.total) * 100) : 0
+  const dueSoon = taskSummary.dueSoon
 
   return (
     <Layout>
@@ -114,7 +121,7 @@ export default function Dashboard() {
               </span>
               <Link
                 to="/projects"
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-teal-400 to-emerald-400 px-5 py-3 text-sm font-bold text-slate-950 shadow-lg shadow-teal-500/20 transition hover:scale-105 active:scale-95"
+                className="flex items-center gap-2 rounded-xl bg-teal-700 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-teal-500/20 transition hover:scale-105 active:scale-95"
               >
                 View Projects <ArrowUpRight size={16} />
               </Link>
@@ -130,16 +137,17 @@ export default function Dashboard() {
           <>
             {/* 4 Stat Cards */}
             <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-              <StatCard icon={FolderKanban} label="Total Projects" value={projects.length} color="teal" trend="+12% this month" />
-              <StatCard icon={ListTodo} label="Total Tasks" value={tasks.length} color="blue" trend="Active workspace items" />
+              <StatCard icon={FolderKanban} label="Total Projects" value={projectCount} color="teal" trend="Accessible workspaces" />
+              <StatCard icon={ListTodo} label="Total Tasks" value={taskSummary.total} color="blue" trend="Active workspace items" />
               <StatCard icon={CheckCircle2} label="Completed Tasks" value={completed} color="green" trend={`${completion}% done rate`} />
               <StatCard icon={Clock3} label="In Progress" value={inProgress} color="amber" trend="Currently being built" />
             </div>
 
-            {/* Middle Section: Progress Gauge & Due Soon */}
-            <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+            {/* Dashboard panels use independent columns so a long list does not leave a blank column below a short card. */}
+            <div className="mt-8 grid items-start gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+              <div className="min-w-0 space-y-6">
               {/* Progress Bar Card */}
-              <section className="rounded-3xl border border-slate-200/80 bg-white p-7 shadow-sm transition hover:shadow-md">
+              <section className="h-fit rounded-3xl border border-slate-200/80 bg-white p-7 shadow-sm transition hover:shadow-md">
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-xs font-bold uppercase tracking-wider text-teal-700">Workspace Execution</span>
@@ -147,11 +155,18 @@ export default function Dashboard() {
                   </div>
                   <div className="text-right">
                     <span className="text-3xl font-black text-teal-600">{completion}%</span>
-                    <p className="text-xs text-slate-400 font-medium">overall velocity</p>
+                    <p className="text-xs text-slate-400 font-medium">tasks completed</p>
                   </div>
                 </div>
 
-                <div className="mt-6 h-4 w-full overflow-hidden rounded-full bg-slate-100 p-0.5 border border-slate-200/60">
+                <div
+                  className="mt-6 h-4 w-full overflow-hidden rounded-full border border-slate-200/60 bg-slate-100 p-0.5"
+                  role="progressbar"
+                  aria-label="Task completion"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={completion}
+                >
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-teal-500 via-emerald-400 to-cyan-400 transition-all duration-1000 shadow-sm"
                     style={{ width: `${completion}%` }}
@@ -169,11 +184,44 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="size-2.5 rounded-full bg-slate-400" />
-                    <span>{tasks.length - completed - inProgress} Todo</span>
+                    <span>{taskSummary.total - completed - inProgress} Todo</span>
                   </div>
                 </div>
               </section>
 
+              {/* Activity Feed */}
+              <section className="rounded-3xl border border-slate-200/80 bg-white p-7 shadow-sm">
+                <div className="flex items-center gap-2.5">
+                  <div className="grid size-9 place-items-center rounded-xl bg-teal-100 text-teal-700">
+                    <ActivityIcon size={18} />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Live Activity Stream</h2>
+                    <p className="text-xs text-slate-400 font-medium">Real-time team actions</p>
+                  </div>
+                </div>
+
+                {activities.length ? (
+                  <div className="mt-6 space-y-4">
+                    {activities.slice(0, 6).map((activity) => (
+                      <div key={activity._id} className="flex gap-3.5 border-b border-slate-100 pb-3.5 last:border-0">
+                        <div className="mt-1 size-2.5 shrink-0 rounded-full bg-teal-500 ring-4 ring-teal-100" />
+                        <div>
+                          <p className="text-sm font-medium text-slate-800 leading-snug">{activity.message}</p>
+                          <p className="mt-1 text-[11px] font-mono text-slate-400">
+                            {new Date(activity.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <Empty text="Activity log will record live updates as your team works." />
+                )}
+              </section>
+              </div>
+
+              <div className="min-w-0 space-y-6">
               {/* Due Soon Deadlines Card */}
               <section className="rounded-3xl border border-slate-200/80 bg-white p-7 shadow-sm transition hover:shadow-md">
                 <div className="flex items-center gap-2.5">
@@ -205,40 +253,6 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <p className="mt-8 text-sm text-slate-500 text-center italic">No urgent deadlines approaching! ✨</p>
-                )}
-              </section>
-            </div>
-
-            {/* Lower Section: Activity History & Recent Projects */}
-            <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-              {/* Activity Feed */}
-              <section className="rounded-3xl border border-slate-200/80 bg-white p-7 shadow-sm">
-                <div className="flex items-center gap-2.5">
-                  <div className="grid size-9 place-items-center rounded-xl bg-teal-100 text-teal-700">
-                    <ActivityIcon size={18} />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">Live Activity Stream</h2>
-                    <p className="text-xs text-slate-400 font-medium">Real-time team actions</p>
-                  </div>
-                </div>
-
-                {activities.length ? (
-                  <div className="mt-6 space-y-4">
-                    {activities.slice(0, 6).map((activity) => (
-                      <div key={activity._id} className="flex gap-3.5 border-b border-slate-100 pb-3.5 last:border-0">
-                        <div className="mt-1 size-2.5 shrink-0 rounded-full bg-teal-500 ring-4 ring-teal-100" />
-                        <div>
-                          <p className="text-sm font-medium text-slate-800 leading-snug">{activity.message}</p>
-                          <p className="mt-1 text-[11px] font-mono text-slate-400">
-                            {new Date(activity.createdAt).toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <Empty text="Activity log will record live updates as your team works." />
                 )}
               </section>
 
@@ -280,6 +294,7 @@ export default function Dashboard() {
                   <Empty text="No projects created yet. Start your first project!" />
                 )}
               </section>
+              </div>
             </div>
           </>
         )}

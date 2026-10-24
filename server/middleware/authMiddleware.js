@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken')
-const User = require('../models/User')
+const { deleteCacheKey } = require('../utils/cache')
+const getCachedUser = require('../utils/cachedUser')
 
 const protect = async (request, response, next) => {
   try {
@@ -13,7 +14,7 @@ const protect = async (request, response, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
-    const user = await User.findById(decoded.userId)
+    const user = await getCachedUser(decoded.userId)
 
     if (!user) {
       return response.status(401).json({ success: false, message: 'User no longer exists' })
@@ -29,4 +30,6 @@ const protect = async (request, response, next) => {
   }
 }
 
-module.exports = { protect }
+const invalidateUserCache = (userId) => deleteCacheKey(`user:${userId}`)
+
+module.exports = { protect, invalidateUserCache }

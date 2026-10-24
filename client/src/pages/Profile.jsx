@@ -112,10 +112,17 @@ export default function Profile() {
 }
 
 function AvatarPreview({ src, initials }) {
-  return src ? (
-    <img src={src} alt="Profile avatar" className="size-20 rounded-full object-cover ring-4 ring-teal-100 shadow-md" />
+  const [failedSrc, setFailedSrc] = useState('')
+
+  return src && failedSrc !== src ? (
+    <img
+      src={src}
+      alt="Profile avatar"
+      onError={() => setFailedSrc(src)}
+      className="size-20 rounded-full object-cover ring-4 ring-teal-100 shadow-md"
+    />
   ) : (
-    <div className="grid size-20 place-items-center rounded-full bg-gradient-to-tr from-teal-500 to-emerald-400 text-xl font-black text-slate-950 ring-4 ring-teal-100 shadow-md">
+    <div className="grid size-20 place-items-center rounded-full bg-teal-700 text-xl font-black text-white ring-4 ring-teal-100 shadow-md">
       {initials}
     </div>
   )

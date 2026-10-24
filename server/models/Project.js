@@ -14,7 +14,7 @@ const projectSchema = new mongoose.Schema(
     memberRoles: { type: [memberRoleSchema], default: [] },
     status: { type: String, enum: ['Active', 'Completed', 'Archived'], default: 'Active' },
   },
-  { timestamps: true },
+  { timestamps: true, optimisticConcurrency: true },
 )
 
 projectSchema.pre('validate', function includeOwner() {
@@ -38,5 +38,7 @@ projectSchema.pre('validate', function includeOwner() {
     role: String(member._id || member) === ownerId ? 'Admin' : (rolesByUser.get(String(member._id || member)) || 'Member'),
   }))
 })
+
+projectSchema.index({ members: 1, updatedAt: -1 })
 
 module.exports = mongoose.model('Project', projectSchema)

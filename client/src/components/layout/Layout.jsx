@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { FolderKanban, LayoutDashboard, ListTodo, LogOut, Radio, Settings, Sparkles } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../../context/useAuth'
@@ -13,9 +14,9 @@ export default function Layout({ children }) {
   const { user, logout } = useAuth()
 
   return (
-    <div className="min-h-screen bg-slate-50/50 text-slate-900 font-sans">
+    <div className="app-theme min-h-screen bg-slate-50/50 text-slate-900 font-sans">
       {/* Desktop Sidebar */}
-      <aside className="fixed inset-y-0 left-0 hidden w-72 flex-col border-r border-slate-800/80 bg-[#0b0f19] px-6 py-6 text-slate-100 shadow-2xl z-30 lg:flex">
+      <aside className="fixed inset-y-0 left-0 hidden w-72 flex-col border-r border-slate-800/80 bg-[#121826] px-6 py-6 text-slate-100 shadow-2xl z-30 lg:flex">
         <Brand />
 
         <div className="mt-10 flex-1 space-y-6">
@@ -103,7 +104,7 @@ function Navigation({ vertical = false }) {
             } ${
               isActive
                 ? vertical
-                  ? 'bg-gradient-to-r from-teal-500 to-emerald-500 text-slate-950 font-bold shadow-lg shadow-teal-500/20'
+                  ? 'bg-teal-700 text-white font-bold shadow-lg shadow-indigo-500/20'
                   : 'bg-teal-50 text-teal-800 font-bold'
                 : vertical
                 ? 'text-slate-400 hover:bg-slate-900 hover:text-white'
@@ -122,7 +123,7 @@ function Navigation({ vertical = false }) {
 function Brand({ dark = true }) {
   return (
     <NavLink to="/dashboard" className="flex items-center gap-3 text-xl font-extrabold tracking-tight">
-      <span className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-teal-400 to-emerald-500 text-slate-950 shadow-md shadow-teal-500/20">
+      <span className="grid size-10 place-items-center rounded-xl bg-teal-700 text-white shadow-md shadow-indigo-500/20">
         <Sparkles size={20} />
       </span>
       <span className={dark ? 'text-white' : 'text-slate-900'}>
@@ -133,6 +134,7 @@ function Brand({ dark = true }) {
 }
 
 function Avatar({ user }) {
+  const [failedAvatar, setFailedAvatar] = useState('')
   const initials = user?.name
     ?.split(' ')
     .map((part) => part[0])
@@ -142,10 +144,15 @@ function Avatar({ user }) {
 
   return (
     <div className="relative">
-      {user?.avatar ? (
-        <img src={user.avatar} alt="" className="size-10 rounded-full object-cover ring-2 ring-teal-500/30" />
+      {user?.avatar && failedAvatar !== user.avatar ? (
+        <img
+          src={user.avatar}
+          alt=""
+          onError={() => setFailedAvatar(user.avatar)}
+          className="size-10 rounded-full object-cover ring-2 ring-teal-500/30"
+        />
       ) : (
-        <span className="grid size-10 place-items-center rounded-full bg-gradient-to-tr from-teal-500 to-emerald-400 text-xs font-extrabold text-slate-950 ring-2 ring-teal-500/30">
+        <span className="grid size-10 place-items-center rounded-full bg-teal-700 text-xs font-extrabold text-white ring-2 ring-teal-500/30">
           {initials}
         </span>
       )}

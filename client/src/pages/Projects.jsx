@@ -7,6 +7,8 @@ import Layout from '../components/layout/Layout'
 
 export default function Projects() {
   const [projects, setProjects] = useState([])
+  const [page, setPage] = useState(1)
+  const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, pages: 0 })
   const [form, setForm] = useState({ title: '', description: '' })
   const [editing, setEditing] = useState(null)
   const [showModal, setShowModal] = useState(false)
@@ -14,20 +16,19 @@ export default function Projects() {
 
   const load = useCallback(async () => {
     try {
-      const [{ data: projectData }, { data: taskData }] = await Promise.all([api.get('/projects'), api.get('/tasks')])
-      const tasksByProject = taskData.tasks.reduce((result, task) => {
-        const key = task.project?._id || task.project
-        result[key] = (result[key] || []).concat(task)
-        return result
-      }, {})
+      const [{ data: projectData }, { data: statsData }] = await Promise.all([
+        api.get('/projects', { params: { page } }),
+        api.get('/tasks/stats'),
+      ])
+      const statsByProject = new Map(statsData.stats.map((stat) => [String(stat._id), stat]))
+      setPagination(projectData.pagination)
       setProjects(
         projectData.projects.map((project) => {
-          const projectTasks = tasksByProject[project._id] || []
-          const completed = projectTasks.filter((task) => task.status === 'Completed').length
+          const stats = statsByProject.get(String(project._id)) || { total: 0, completed: 0 }
           return {
             ...project,
-            taskCount: projectTasks.length,
-            progress: projectTasks.length ? Math.round((completed / projectTasks.length) * 100) : 0,
+            taskCount: stats.total,
+            progress: stats.total ? Math.round((stats.completed / stats.total) * 100) : 0,
           }
         })
       )
@@ -36,7 +37,7 @@ export default function Projects() {
     } finally {
       setState((current) => ({ ...current, loading: false }))
     }
-  }, [])
+  }, [page])
 
   useEffect(() => {
     queueMicrotask(load)
@@ -52,6 +53,11 @@ export default function Projects() {
       } else {
         const { data } = await api.post('/projects', form)
         setProjects((items) => [{ ...data.project, taskCount: 0, progress: 0 }, ...items])
+        setPagination((current) => ({
+          ...current,
+          total: current.total + 1,
+          pages: Math.ceil((current.total + 1) / current.limit),
+        }))
       }
       setForm({ title: '', description: '' })
       setEditing(null)
@@ -68,6 +74,11 @@ export default function Projects() {
     try {
       await api.delete(`/projects/${id}`)
       setProjects((items) => items.filter((project) => project._id !== id))
+      setPagination((current) => ({
+        ...current,
+        total: Math.max(0, current.total - 1),
+        pages: Math.ceil(Math.max(0, current.total - 1) / current.limit),
+      }))
     } catch (error) {
       setState((current) => ({ ...current, error: error.response?.data?.message || 'Unable to delete project' }))
     }
@@ -95,7 +106,7 @@ export default function Projects() {
               setForm({ title: '', description: '' })
               setShowModal(true)
             }}
-            className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-500 px-6 py-3.5 text-sm font-bold text-slate-950 shadow-lg shadow-teal-500/20 transition hover:scale-105 active:scale-95"
+            className="flex items-center gap-2 rounded-2xl bg-teal-700 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-teal-500/20 transition hover:scale-105 active:scale-95"
           >
             <Plus size={18} /> Start New Project
           </button>
@@ -251,6 +262,27 @@ export default function Projects() {
               className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 text-sm font-bold text-white hover:bg-teal-700"
             >
               <Plus size={16} /> Start First Project
+            </button>
+          </div>
+        )}
+        {!state.loading && pagination.pages > 1 && (
+          <div className="mt-7 flex items-center justify-center gap-4">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-slate-500">Page {pagination.page} of {pagination.pages} · {pagination.total} projects</span>
+            <button
+              type="button"
+              disabled={page >= pagination.pages}
+              onClick={() => setPage((current) => Math.min(pagination.pages, current + 1))}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+            >
+              Next
             </button>
           </div>
         )}

@@ -82,8 +82,9 @@ This makes it a practical example of how a production-style SaaS app is split in
 
 ### Demo / Seed Data
 
-- Seed demo user account and sample projects
-- Populate demo tasks and comments for quick testing
+- Seed five demo users, ten shared projects, and 75 tasks (15 created by each user)
+- Give every user membership in all projects, with each user owning/administering two
+- Populate demo tasks, comments, and activity for quick testing
 - Helpful for local development and portfolio demonstrations
 
 ## Tech Stack
@@ -134,6 +135,8 @@ Users, Projects, Tasks, Comments, Activity
 ```
 
 The frontend is responsible for user interactions, page flow, rendering, and client-side state. The server is responsible for validating requests, enforcing authorization rules, processing business logic, and writing to MongoDB.
+
+Socket.IO uses the same HttpOnly JWT cookie as the HTTP API. A socket can join a project room only after the server confirms membership, and project events are emitted only to that room.
 
 ## Project Structure
 
@@ -231,7 +234,8 @@ Create `server/.env` with values like:
 ```env
 PORT=5000
 NODE_ENV=development
-MONGODB_URI=mongodb://127.0.0.1:27017/devtrack
+MONGODB_URI=mongodb://127.0.0.1:27017/devtrack?replicaSet=rs0
+REDIS_URL=
 JWT_SECRET=replace-with-a-long-random-secret
 JWT_EXPIRE=7d
 CLIENT_URL=http://localhost:5173
@@ -247,7 +251,9 @@ VITE_API_URL=http://localhost:5000/api
 
 ### Notes
 
-- `MONGODB_URI` can point to either a local MongoDB instance or Atlas
+- `MONGODB_URI` must point to a MongoDB replica set (including Atlas) because writes use multi-document transactions
+- For local development, start MongoDB with replica set mode enabled and initialize the set as `rs0`
+- Configure `REDIS_URL` when running more than one API instance so Socket.IO rooms and events are shared across instances
 - `JWT_SECRET` should be long and unpredictable
 - `CLIENT_URL` must match your frontend origin during local or production development
 - Never commit `.env` files to Git
@@ -295,7 +301,7 @@ The expected response is:
 
 ## Demo Data
 
-The project includes a seed script that creates a demo user and sample project data.
+The project includes a seed script that creates five demo users, ten projects shared by all five users, and 75 tasks. Each user owns two projects (and is therefore an Admin on those projects) and creates 15 tasks.
 
 Run:
 
@@ -303,14 +309,23 @@ Run:
 npm --prefix server run seed
 ```
 
-Demo login details:
+All demo accounts use the same password:
 
 ```text
-Email: demo@devtrack.com
 Password: Demo123!
 ```
 
-This script deletes the old demo user’s project data before recreating it, so it should only be used in a development database.
+Demo accounts:
+
+```text
+demo@devtrack.com
+demo2@devtrack.com
+demo3@devtrack.com
+demo4@devtrack.com
+demo5@devtrack.com
+```
+
+The seed script replaces only its generated demo projects and their tasks, comments, and activity. It also replaces the original sample projects for `demo@devtrack.com`. Run it only against a development/demo database; all five accounts have the same known password.
 
 ## Core Data Model
 
@@ -357,6 +372,7 @@ Comments include:
 - task
 - user
 - message
+- HTTPS attachment references
 - timestamps
 
 ### Activity
@@ -396,15 +412,15 @@ Unauthenticated users are redirected away from protected pages and sent back to 
 
 ## Authentication and Authorization Model
 
-DevTrack uses JWT-based authentication.
+DevTrack uses JWT-based authentication stored in an HttpOnly cookie. In production the cookie is marked Secure and uses SameSite=None for the separate frontend and API origins.
 
 ### Authentication flow
 
 1. A user registers or logs in.
 2. The server checks the submitted credentials.
 3. The server hashes passwords before storing them.
-4. The backend creates and returns a JWT.
-5. The frontend stores the token and includes it in future requests.
+4. The backend sets a JWT in an HttpOnly cookie.
+5. The browser sends that cookie with API and Socket.IO requests.
 6. The server verifies the token in protected routes.
 7. User identity is attached to the request for authorization checks.
 
@@ -420,18 +436,13 @@ The project owner is always normalized to Admin, and permissions are enforced on
 
 ## API Reference
 
-The API is mounted under `/api`.
-
-All protected endpoints require this header:
-
-```http
-Authorization: Bearer YOUR_JWT
-```
+The API is mounted under `/api`. Protected HTTP endpoints use the `devtrack_token` HttpOnly cookie. State-changing requests must include the configured frontend `Origin`.
 
 ### Health
 
 ```text
 GET /api/health
+GET /api/ready
 ```
 
 ### Authentication
@@ -459,6 +470,8 @@ PUT    /api/projects/:id/members/:userId/role
 
 ```text
 GET    /api/tasks
+GET    /api/tasks/summary
+GET    /api/tasks/stats
 POST   /api/tasks
 GET    /api/tasks/:id
 PUT    /api/tasks/:id
@@ -472,7 +485,11 @@ Supported task filtering examples:
 /api/tasks?status=Todo
 /api/tasks?priority=High
 /api/tasks?search=dashboard
+/api/tasks?page=2&limit=50
 ```
+
+Task and project list responses include pagination metadata. The maximum page size is 100.
+The summary and stats endpoints use database aggregation rather than loading all tasks into the browser.
 
 ### Comments
 
@@ -574,10 +591,18 @@ VITE_API_URL=https://your-render-service.onrender.com/api
 ## Security Notes
 
 - Passwords are hashed before being saved
-- JWTs are required for protected endpoints
+- JWTs in HttpOnly cookies are required for protected HTTP and Socket.IO connections
+- Socket.IO project rooms are membership-authorized and project-scoped
+- Socket.IO uses a Redis adapter when `REDIS_URL` is configured; without it, run a single API instance
+- Authenticated user records are cached for 30 seconds and project membership checks for 15 seconds; Redis shares the cache across instances when configured, otherwise the cache is bounded per process
+- User profile changes and project membership changes invalidate their related cache entries
+- State-changing HTTP requests require an exact trusted origin
 - Input validation is enforced on the backend
 - Role permission checks are performed server-side
 - CORS restricts API access to the configured frontend origin
+- Task list responses are paginated; dashboard counts are aggregated by the API
+- Task, comment, and activity writes are transactional; configure MongoDB as a replica set
+- Attachments are HTTPS URL references, not file uploads or base64 data stored in MongoDB
 - Secrets are stored in environment variables instead of source files
 
 ## Troubleshooting
@@ -586,7 +611,7 @@ VITE_API_URL=https://your-render-service.onrender.com/api
 
 Check that:
 
-- MongoDB is running locally or the Atlas connection string is valid
+- MongoDB is running as a replica set locally or the Atlas connection string is valid
 - The connection string includes the proper credentials and database name
 - The network allows access in Atlas or your hosting environment
 
@@ -594,8 +619,8 @@ Check that:
 
 Check that:
 
-- The client is storing the token after login
-- The `Authorization` header is being sent as `Bearer <token>`
+- Login or registration sets the `devtrack_token` HttpOnly cookie
+- The browser accepts the `devtrack_token` HttpOnly cookie and the frontend origin matches `CLIENT_URL`
 - The token is not expired
 - `JWT_SECRET` matches between environments
 
@@ -614,19 +639,18 @@ Make sure:
 
 - `MONGODB_URI` is configured before running the seed script
 - You are using a development database
-- You understand that the seed script will replace demo data
+- You understand that the seed script replaces its generated demo data
 
 ## Future Improvements
 
 Potential enhancements include:
 
-- HttpOnly cookie-based authentication
 - Password reset and email verification
 - Advanced reporting and analytics
 - Team invitations and permission invite workflows
 - CI/CD pipeline with automated checks and previews
 - End-to-end UI testing
-- More granular task views and filtering options
+- Managed object storage for private attachments and upload workflows
 
 ## License
 

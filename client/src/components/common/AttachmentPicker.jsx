@@ -1,51 +1,45 @@
-import { useRef, useState } from 'react'
-import { FileText, Image as ImageIcon, Paperclip, Trash2, UploadCloud, X } from 'lucide-react'
+import { useState } from 'react'
+import { FileText, Image as ImageIcon, Paperclip, Trash2, X } from 'lucide-react'
 
 export default function AttachmentPicker({ attachments = [], onChange }) {
-  const fileInputRef = useRef(null)
   const [urlInput, setUrlInput] = useState('')
   const [showUrlForm, setShowUrlForm] = useState(false)
-
-  const handleFileUpload = (event) => {
-    const files = Array.from(event.target.files || [])
-    if (!files.length) return
-
-    files.forEach((file) => {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const url = e.target.result
-        let fileType = 'other'
-        if (file.type.startsWith('image/')) fileType = 'image'
-        else if (file.type.includes('pdf')) fileType = 'pdf'
-        else if (file.type.includes('word') || file.type.includes('text') || file.type.includes('doc')) fileType = 'document'
-
-        const newAttachment = {
-          name: file.name,
-          url,
-          fileType,
-          size: file.size,
-        }
-        onChange([...attachments, newAttachment])
-      }
-      reader.readAsDataURL(file)
-    })
-    event.target.value = ''
-  }
+  const [urlError, setUrlError] = useState('')
 
   const handleAddUrl = (e) => {
     e.preventDefault()
     if (!urlInput.trim()) return
+    if (attachments.length >= 10) {
+      setUrlError('A maximum of 10 attachments is allowed.')
+      return
+    }
+    let parsedUrl
+    try {
+      parsedUrl = new URL(urlInput.trim())
+    } catch {
+      setUrlError('Enter a valid HTTPS URL.')
+      return
+    }
+    if (parsedUrl.protocol !== 'https:') {
+      setUrlError('Attachment links must use HTTPS.')
+      return
+    }
     let fileType = 'other'
-    const lower = urlInput.toLowerCase()
+    const lower = parsedUrl.pathname.toLowerCase()
     if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp') || lower.endsWith('.gif')) {
       fileType = 'image'
     } else if (lower.endsWith('.pdf')) {
       fileType = 'pdf'
     }
 
-    const name = urlInput.split('/').pop().split('?')[0] || 'Web Link'
-    onChange([...attachments, { name, url: urlInput.trim(), fileType, size: 0 }])
+    const name = parsedUrl.pathname.split('/').pop() || parsedUrl.hostname
+    if (name.length > 255) {
+      setUrlError('The attachment name must be 255 characters or fewer.')
+      return
+    }
+    onChange([...attachments, { name, url: parsedUrl.toString(), fileType, size: 0 }])
     setUrlInput('')
+    setUrlError('')
     setShowUrlForm(false)
   }
 
@@ -58,28 +52,11 @@ export default function AttachmentPicker({ attachments = [], onChange }) {
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-teal-400 hover:text-teal-700 transition"
-        >
-          <Paperclip size={14} className="text-teal-600" /> Attach File
-        </button>
-
-        <button
-          type="button"
           onClick={() => setShowUrlForm(!showUrlForm)}
           className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-teal-400 hover:text-teal-700 transition"
         >
-          <UploadCloud size={14} className="text-teal-600" /> Add URL Link
+          <Paperclip size={14} className="text-teal-600" /> Add HTTPS Link
         </button>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept="image/*,.pdf,.doc,.docx,.txt"
-          onChange={handleFileUpload}
-          className="hidden"
-        />
       </div>
 
       {showUrlForm && (
@@ -88,8 +65,12 @@ export default function AttachmentPicker({ attachments = [], onChange }) {
             type="url"
             required
             value={urlInput}
-            onChange={(e) => setUrlInput(e.target.value)}
-            placeholder="https://example.com/file.png"
+            onChange={(e) => {
+              setUrlInput(e.target.value)
+              setUrlError('')
+            }}
+            maxLength={2048}
+            placeholder="https://example.com/file.pdf"
             className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 outline-none focus:border-teal-500"
           />
           <button type="submit" className="rounded-lg bg-teal-700 px-3 py-1.5 font-semibold text-white">
@@ -104,6 +85,7 @@ export default function AttachmentPicker({ attachments = [], onChange }) {
           </button>
         </form>
       )}
+      {urlError && <p role="alert" className="text-xs text-red-700">{urlError}</p>}
 
       {/* Attachments Preview Grid */}
       {attachments.length > 0 && (

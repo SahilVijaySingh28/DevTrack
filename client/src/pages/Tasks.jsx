@@ -13,20 +13,27 @@ const priorityStyles = {
 }
 
 const emptyForm = { title: '', description: '', project: '', assignedTo: '', priority: 'Medium', dueDate: '', attachments: [] }
+const uniqueTasks = (items) => [...new Map(items.map((task) => [String(task._id), task])).values()]
 
 export default function Tasks() {
   const [tasks, setTasks] = useState([])
   const [projects, setProjects] = useState([])
   const [filters, setFilters] = useState({ status: '', priority: '', search: '' })
+  const [page, setPage] = useState(1)
+  const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, pages: 0 })
   const [form, setForm] = useState(emptyForm)
   const [state, setState] = useState({ loading: true, saving: false, error: '', success: '' })
   const [activeDragId, setActiveDragId] = useState(null)
   const [dragOverColumn, setDragOverColumn] = useState(null)
 
   const load = useCallback(() => {
-    Promise.all([api.get('/tasks', { params: filters }), api.get('/projects')])
+    const params = Object.fromEntries(
+      Object.entries({ ...filters, page }).filter(([, value]) => value !== '')
+    )
+    Promise.all([api.get('/tasks', { params }), api.get('/projects')])
       .then(([taskResponse, projectResponse]) => {
-        setTasks(taskResponse.data.tasks)
+        setTasks(uniqueTasks(taskResponse.data.tasks))
+        setPagination(taskResponse.data.pagination)
         setProjects(projectResponse.data.projects)
         setForm((current) => ({
           ...current,
@@ -40,27 +47,33 @@ export default function Tasks() {
         }))
       )
       .finally(() => setState((current) => ({ ...current, loading: false })))
-  }, [filters])
+  }, [filters, page])
 
   useEffect(() => {
     load()
   }, [load])
 
+  useEffect(() => {
+    projects.forEach((project) => socket.emit('join_project', project._id))
+    return () => projects.forEach((project) => socket.emit('leave_project', project._id))
+  }, [projects])
+
   // Socket.IO Real-Time Synchronization
   useEffect(() => {
     const handleTaskCreated = (newTask) => {
       setTasks((prev) => {
-        if (prev.some((t) => t._id === newTask._id)) return prev
-        return [newTask, ...prev]
+        return uniqueTasks([newTask, ...prev])
       })
     }
 
     const handleTaskUpdated = (updatedTask) => {
-      setTasks((prev) => prev.map((t) => (t._id === updatedTask._id ? updatedTask : t)))
+      setTasks((prev) => uniqueTasks(prev.map((task) => (
+        String(task._id) === String(updatedTask._id) ? updatedTask : task
+      ))))
     }
 
     const handleTaskDeleted = ({ taskId }) => {
-      setTasks((prev) => prev.filter((t) => t._id !== taskId))
+      setTasks((prev) => prev.filter((task) => String(task._id) !== String(taskId)))
     }
 
     socket.on('task_created', handleTaskCreated)
@@ -85,7 +98,12 @@ export default function Tasks() {
         assignedTo: form.assignedTo || undefined,
         dueDate: form.dueDate || undefined,
       })
-      setTasks((items) => (items.some((i) => i._id === data.task._id) ? items : [data.task, ...items]))
+      setTasks((items) => uniqueTasks([data.task, ...items]))
+      setPagination((current) => ({
+        ...current,
+        total: current.total + 1,
+        pages: Math.ceil((current.total + 1) / current.limit),
+      }))
       setForm({ ...emptyForm, project: form.project })
       setState((current) => ({ ...current, success: 'Task created successfully' }))
     } catch (error) {
@@ -102,11 +120,15 @@ export default function Tasks() {
     if (task.status === status) return
     // Optimistic UI update
     const previousTasks = [...tasks]
-    setTasks((items) => items.map((item) => (item._id === task._id ? { ...item, status } : item)))
+    setTasks((items) => items.map((item) => (
+      String(item._id) === String(task._id) ? { ...item, status } : item
+    )))
 
     try {
       const { data } = await api.put(`/tasks/${task._id}`, { status })
-      setTasks((items) => items.map((item) => (item._id === task._id ? data.task : item)))
+      setTasks((items) => uniqueTasks(items.map((item) => (
+        String(item._id) === String(task._id) ? data.task : item
+      ))))
     } catch (error) {
       setTasks(previousTasks)
       setState((current) => ({
@@ -120,7 +142,12 @@ export default function Tasks() {
     if (!window.confirm(`Delete "${task.title}"?`)) return
     try {
       await api.delete(`/tasks/${task._id}`)
-      setTasks((items) => items.filter((item) => item._id !== task._id))
+      setTasks((items) => items.filter((item) => String(item._id) !== String(task._id)))
+      setPagination((current) => ({
+        ...current,
+        total: Math.max(0, current.total - 1),
+        pages: Math.ceil(Math.max(0, current.total - 1) / current.limit),
+      }))
       setState((current) => ({ ...current, success: 'Task deleted' }))
     } catch (error) {
       setState((current) => ({
@@ -269,13 +296,19 @@ export default function Tasks() {
         <div className="mt-6 grid gap-3 sm:flex sm:flex-wrap">
           <input
             value={filters.search}
-            onChange={(event) => setFilters({ ...filters, search: event.target.value })}
+            onChange={(event) => {
+              setPage(1)
+              setFilters({ ...filters, search: event.target.value })
+            }}
             placeholder="Search task titles..."
             className="w-full sm:w-auto rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-teal-500"
           />
           <select
             value={filters.status}
-            onChange={(event) => setFilters({ ...filters, status: event.target.value })}
+            onChange={(event) => {
+              setPage(1)
+              setFilters({ ...filters, status: event.target.value })
+            }}
             className="w-full sm:w-auto rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm"
           >
             <option value="">All statuses</option>
@@ -285,7 +318,10 @@ export default function Tasks() {
           </select>
           <select
             value={filters.priority}
-            onChange={(event) => setFilters({ ...filters, priority: event.target.value })}
+            onChange={(event) => {
+              setPage(1)
+              setFilters({ ...filters, priority: event.target.value })
+            }}
             className="w-full sm:w-auto rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm"
           >
             <option value="">All priorities</option>
@@ -332,7 +368,7 @@ export default function Tasks() {
 
                       return (
                         <article
-                          key={task._id}
+                          key={String(task._id)}
                           draggable
                           onDragStart={(e) => handleDragStart(e, task._id)}
                           onDragEnd={() => setActiveDragId(null)}
@@ -407,6 +443,27 @@ export default function Tasks() {
                 </section>
               )
             })}
+          </div>
+        )}
+        {pagination.pages > 1 && (
+          <div className="mt-6 flex items-center justify-center gap-4">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-slate-500">Page {pagination.page} of {pagination.pages} · {pagination.total} tasks</span>
+            <button
+              type="button"
+              disabled={page >= pagination.pages}
+              onClick={() => setPage((current) => Math.min(pagination.pages, current + 1))}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+            >
+              Next
+            </button>
           </div>
         )}
       </section>

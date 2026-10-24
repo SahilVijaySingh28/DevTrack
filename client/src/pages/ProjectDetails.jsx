@@ -43,6 +43,8 @@ export default function ProjectDetails() {
   const [memberSearch, setMemberSearch] = useState("");
   const [comment, setComment] = useState("");
   const [filter, setFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, pages: 0 });
   const [editing, setEditing] = useState(false);
   const [state, setState] = useState({
     loading: true,
@@ -56,7 +58,7 @@ export default function ProjectDetails() {
       const [{ data: projectData }, { data: taskData }] = await Promise.all([
         api.get(`/projects/${id}`),
         api.get("/tasks", {
-          params: { project: id, status: filter || undefined },
+          params: { project: id, status: filter || undefined, page },
         }),
       ]);
       setProject(projectData.project);
@@ -66,6 +68,7 @@ export default function ProjectDetails() {
         status: projectData.project.status,
       });
       setTasks(taskData.tasks);
+      setPagination(taskData.pagination);
     } catch (error) {
       setState((current) => ({
         ...current,
@@ -74,7 +77,7 @@ export default function ProjectDetails() {
     } finally {
       setState((current) => ({ ...current, loading: false }));
     }
-  }, [id, filter]);
+  }, [id, filter, page]);
 
   useEffect(() => {
     queueMicrotask(load);
@@ -159,6 +162,11 @@ export default function ProjectDetails() {
         dueDate: taskForm.dueDate || undefined,
       });
       setTasks((items) => (items.some((i) => i._id === data.task._id) ? items : [data.task, ...items]));
+      setPagination((current) => ({
+        ...current,
+        total: current.total + 1,
+        pages: Math.ceil((current.total + 1) / current.limit),
+      }));
       setTaskForm({
         title: "",
         priority: "Medium",
@@ -194,6 +202,11 @@ export default function ProjectDetails() {
     try {
       await api.delete(`/tasks/${task._id}`);
       setTasks((items) => items.filter((item) => item._id !== task._id));
+      setPagination((current) => ({
+        ...current,
+        total: Math.max(0, current.total - 1),
+        pages: Math.ceil(Math.max(0, current.total - 1) / current.limit),
+      }));
       setState((current) => ({ ...current, success: "Task deleted" }));
     } catch (error) {
       setState((current) => ({
@@ -344,7 +357,7 @@ export default function ProjectDetails() {
           </div>
           <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
             <span>
-              {tasks.length} tasks · {project.members.length} members
+              {pagination.total} tasks · {project.members.length} members
             </span>
             <button
               onClick={() => setEditing(true)}
@@ -478,7 +491,10 @@ export default function ProjectDetails() {
             <div className="mt-6 flex items-center justify-between">
               <select
                 value={filter}
-                onChange={(event) => setFilter(event.target.value)}
+                onChange={(event) => {
+                  setPage(1);
+                  setFilter(event.target.value);
+                }}
                 className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm"
               >
                 <option value="">All task statuses</option>
@@ -611,6 +627,27 @@ export default function ProjectDetails() {
                 </div>
               )}
             </div>
+            {pagination.pages > 1 && (
+              <div className="mt-5 flex items-center justify-center gap-4">
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <span className="text-sm text-slate-500">Page {pagination.page} of {pagination.pages}</span>
+                <button
+                  type="button"
+                  disabled={page >= pagination.pages}
+                  onClick={() => setPage((current) => Math.min(pagination.pages, current + 1))}
+                  className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </section>
 
           {/* Members Sidebar */}

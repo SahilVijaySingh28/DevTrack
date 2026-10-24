@@ -3,7 +3,7 @@ const requireTrustedOrigin = (request, response, next) => {
 
   const origin = request.get('origin')
   const trustedOrigin = process.env.CLIENT_URL || 'http://localhost:5173'
-  if (origin && origin !== trustedOrigin) {
+  if (origin !== trustedOrigin) {
     return response.status(403).json({ success: false, message: 'Untrusted request origin' })
   }
 

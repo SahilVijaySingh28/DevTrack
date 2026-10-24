@@ -4,6 +4,7 @@ const http = require('http')
 const cookieParser = require('cookie-parser')
 const cors = require('cors')
 const express = require('express')
+const mongoose = require('mongoose')
 const connectDatabase = require('./config/db')
 const { requireTrustedOrigin } = require('./middleware/csrfMiddleware')
 const authRoutes = require('./routes/authRoutes')
@@ -14,7 +15,7 @@ const { errorHandler, notFound } = require('./middleware/errorMiddleware')
 const projectRoutes = require('./routes/projectRoutes')
 const taskRoutes = require('./routes/taskRoutes')
 const userRoutes = require('./routes/userRoutes')
-const { initSocket } = require('./utils/socket')
+const { initSocket, connectSocketAdapter, closeSocketAdapter } = require('./utils/socket')
 
 const app = express()
 const server = http.createServer(app)
@@ -23,13 +24,18 @@ initSocket(server)
 const port = process.env.PORT || 5000
 
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true }))
-app.use(express.json({ limit: '15mb' }))
-app.use(express.urlencoded({ extended: true, limit: '15mb' }))
+app.use(express.json({ limit: '1mb' }))
+app.use(express.urlencoded({ extended: true, limit: '1mb' }))
 app.use(cookieParser())
 app.use(requireTrustedOrigin)
 
 app.get('/api/health', (request, response) => {
   response.json({ success: true, message: 'DevTrack API is running' })
+})
+
+app.get('/api/ready', (request, response) => {
+  const ready = mongoose.connection.readyState === 1
+  response.status(ready ? 200 : 503).json({ success: ready, database: ready ? 'connected' : 'unavailable' })
 })
 
 app.use('/api/auth', authRoutes)
@@ -44,16 +50,39 @@ app.use(errorHandler)
 
 const startServer = async () => {
   await connectDatabase()
+  await connectSocketAdapter()
   server.listen(port, () => {
     process.stdout.write(`DevTrack API listening on port ${port}\n`)
   })
 }
 
 if (require.main === module) {
-  startServer().catch((error) => {
+  startServer().catch(async (error) => {
     process.stderr.write(`Failed to start server: ${error.message}\n`)
     process.exitCode = 1
+    await closeSocketAdapter().catch((shutdownError) => {
+      process.stderr.write(`Failed to close Socket.IO adapter: ${shutdownError.message}\n`)
+    })
+    await mongoose.disconnect().catch((shutdownError) => {
+      process.stderr.write(`Failed to disconnect from MongoDB: ${shutdownError.message}\n`)
+    })
   })
+
+  const shutdown = () => {
+    server.close((error) => {
+      if (error) {
+        process.stderr.write(`Failed to close server cleanly: ${error.message}\n`)
+        process.exitCode = 1
+      }
+      Promise.all([closeSocketAdapter(), mongoose.disconnect()]).catch((shutdownError) => {
+        process.stderr.write(`Failed to close application connections: ${shutdownError.message}\n`)
+        process.exitCode = 1
+      })
+    })
+  }
+
+  process.once('SIGTERM', shutdown)
+  process.once('SIGINT', shutdown)
 }
 
 module.exports = app
