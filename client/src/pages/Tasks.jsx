@@ -19,6 +19,7 @@ export default function Tasks() {
   const [tasks, setTasks] = useState([])
   const [projects, setProjects] = useState([])
   const [filters, setFilters] = useState({ status: '', priority: '', search: '' })
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, pages: 0 })
   const [form, setForm] = useState(emptyForm)
@@ -26,31 +27,62 @@ export default function Tasks() {
   const [activeDragId, setActiveDragId] = useState(null)
   const [dragOverColumn, setDragOverColumn] = useState(null)
 
-  const load = useCallback(() => {
-    const params = Object.fromEntries(
-      Object.entries({ ...filters, page }).filter(([, value]) => value !== '')
-    )
-    Promise.all([api.get('/tasks', { params }), api.get('/projects')])
-      .then(([taskResponse, projectResponse]) => {
-        setTasks(uniqueTasks(taskResponse.data.tasks))
-        setPagination(taskResponse.data.pagination)
-        setProjects(projectResponse.data.projects)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => setDebouncedSearch(filters.search.trim()), 300)
+    return () => clearTimeout(timeoutId)
+  }, [filters.search])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    api.get('/projects', { signal: controller.signal })
+      .then(({ data }) => {
+        setProjects(data.projects)
         setForm((current) => ({
           ...current,
-          project: current.project || projectResponse.data.projects[0]?._id || '',
+          project: current.project || data.projects[0]?._id || '',
         }))
       })
-      .catch((error) =>
+      .catch((error) => {
+        if (controller.signal.aborted) return
+        setState((current) => ({
+          ...current,
+          error: error.response?.data?.message || 'Unable to load projects',
+        }))
+      })
+
+    return () => controller.abort()
+  }, [])
+
+  const load = useCallback((signal) => {
+    const params = Object.fromEntries(
+      Object.entries({
+        status: filters.status,
+        priority: filters.priority,
+        search: debouncedSearch,
+        page,
+      }).filter(([, value]) => value !== '')
+    )
+    api.get('/tasks', { params, signal })
+      .then(({ data }) => {
+        setTasks(uniqueTasks(data.tasks))
+        setPagination(data.pagination)
+      })
+      .catch((error) => {
+        if (signal.aborted) return
         setState((current) => ({
           ...current,
           error: error.response?.data?.message || 'Unable to load tasks',
         }))
-      )
-      .finally(() => setState((current) => ({ ...current, loading: false })))
-  }, [filters, page])
+      })
+      .finally(() => {
+        if (!signal.aborted) setState((current) => ({ ...current, loading: false }))
+      })
+  }, [filters.priority, filters.status, debouncedSearch, page])
 
   useEffect(() => {
-    load()
+    const controller = new AbortController()
+    load(controller.signal)
+    return () => controller.abort()
   }, [load])
 
   useEffect(() => {

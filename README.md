@@ -441,6 +441,7 @@ The project owner is always normalized to Admin, and permissions are enforced on
 ## API Reference
 
 The API is mounted under `/api`. Protected HTTP endpoints use the `devtrack_token` HttpOnly cookie. State-changing requests must include the configured frontend `Origin`.
+API responses use `Cache-Control: no-store`; entity tags are disabled so API requests are not answered with `304 Not Modified`.
 
 ### Health
 
@@ -494,6 +495,7 @@ Supported task filtering examples:
 
 Task and project list responses include pagination metadata. The maximum page size is 100.
 The summary and stats endpoints use database aggregation rather than loading all tasks into the browser.
+Task title searches retain substring matching and are bounded by a two-second database execution limit.
 
 ### Comments
 
@@ -503,12 +505,23 @@ POST /api/tasks/:taskId/comments
 DELETE /api/comments/:id
 ```
 
+Comment reads return the newest 20 comments by default, with a `pagination.nextCursor` for loading older comments:
+
+```text
+GET /api/tasks/:taskId/comments?limit=20
+GET /api/tasks/:taskId/comments?limit=20&before=COMMENT_ID
+```
+
+The maximum comment page size is 100. Comments are returned in chronological order within each page.
+
 ### Users
 
 ```text
-GET /api/users?search=name-or-email
+GET /api/users?project=PROJECT_ID&search=name-or-email
 PUT /api/users/profile
 ```
+
+Member search requires an Admin or Manager role in the specified project and excludes users who are already project members.
 
 ### Activity
 
@@ -607,6 +620,9 @@ VITE_API_URL=https://your-render-service.onrender.com/api
 - Authenticated user records are cached for 30 seconds and project membership checks for 15 seconds; Redis shares the cache across instances when configured, otherwise the cache is bounded per process
 - User profile changes and project membership changes invalidate their related cache entries
 - State-changing HTTP requests require an exact trusted origin
+- Login attempts are limited to 10 per 15 minutes, registrations to 5 per hour, and refreshes to 30 per 15 minutes per client IP; successful login and refresh requests do not count, while registrations do
+- Authentication limits use an in-memory per-process store. For multiple API instances, configure a shared rate-limit store before scaling out
+- In production, Express trusts one reverse-proxy hop for client IP detection; adjust this if the deployment uses a different proxy topology
 - Input validation is enforced on the backend
 - Role permission checks are performed server-side
 - CORS restricts API access to the configured frontend origin

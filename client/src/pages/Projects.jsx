@@ -14,11 +14,11 @@ export default function Projects() {
   const [showModal, setShowModal] = useState(false)
   const [state, setState] = useState({ loading: true, saving: false, error: '' })
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal) => {
     try {
       const [{ data: projectData }, { data: statsData }] = await Promise.all([
-        api.get('/projects', { params: { page } }),
-        api.get('/tasks/stats'),
+        api.get('/projects', { params: { page }, signal }),
+        api.get('/tasks/stats', { signal }),
       ])
       const statsByProject = new Map(statsData.stats.map((stat) => [String(stat._id), stat]))
       setPagination(projectData.pagination)
@@ -33,14 +33,19 @@ export default function Projects() {
         })
       )
     } catch (error) {
+      if (signal.aborted) return
       setState((current) => ({ ...current, error: error.response?.data?.message || 'Unable to load projects' }))
     } finally {
-      setState((current) => ({ ...current, loading: false }))
+      if (!signal.aborted) setState((current) => ({ ...current, loading: false }))
     }
   }, [page])
 
   useEffect(() => {
-    queueMicrotask(load)
+    const controller = new AbortController()
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) load(controller.signal)
+    })
+    return () => controller.abort()
   }, [load])
 
   const submit = async (event) => {

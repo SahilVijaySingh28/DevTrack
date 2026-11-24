@@ -47,10 +47,13 @@ const getTasks = async (request, response, next) => {
       return response.json({ success: true, tasks: [], pagination: { page, limit, total: 0, pages: 0 } })
     }
     filter.project = filter.project || { $in: projects.map((project) => project._id) }
-    const [tasks, total] = await Promise.all([
-      taskQuery(filter).skip((page - 1) * limit).limit(limit),
-      Task.countDocuments(filter),
-    ])
+    const tasksQuery = taskQuery(filter).skip((page - 1) * limit).limit(limit)
+    const countQuery = Task.countDocuments(filter)
+    if (search?.trim()) {
+      tasksQuery.maxTimeMS(2000)
+      countQuery.maxTimeMS(2000)
+    }
+    const [tasks, total] = await Promise.all([tasksQuery, countQuery])
     response.json({ success: true, tasks, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
   } catch (error) { next(error) }
 }
@@ -71,13 +74,15 @@ const getTaskSummary = async (request, response, next) => {
     const projects = await Project.find({ members: request.user._id }).select('_id')
     const projectIds = projects.map((project) => project._id)
     const dueDateLimit = new Date()
+    const dueDateStart = new Date()
     dueDateLimit.setDate(dueDateLimit.getDate() + 7)
+    dueDateStart.setHours(0, 0, 0, 0)
     const [counts, dueSoon] = await Promise.all([
       Task.aggregate([
         { $match: { project: { $in: projectIds } } },
         { $group: { _id: null, total: { $sum: 1 }, completed: { $sum: { $cond: [{ $eq: ['$status', 'Completed'] }, 1, 0] } }, inProgress: { $sum: { $cond: [{ $eq: ['$status', 'In Progress'] }, 1, 0] } } } },
       ]),
-      Task.find({ project: { $in: projectIds }, status: { $ne: 'Completed' }, dueDate: { $ne: null, $lte: dueDateLimit } })
+      Task.find({ project: { $in: projectIds }, status: { $ne: 'Completed' }, dueDate: { $gte: dueDateStart, $lte: dueDateLimit } })
         .populate('project', 'title status')
         .populate('assignedTo', 'name email avatar')
         .populate('createdBy', 'name email avatar')

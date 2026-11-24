@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   Edit3,
@@ -18,6 +18,10 @@ import { useAuth } from "../context/useAuth";
 
 const statuses = ["Todo", "In Progress", "Completed"];
 const priorities = ["Low", "Medium", "High"];
+const sortComments = (items) => [...items].sort((left, right) => (
+  new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
+  || String(left._id).localeCompare(String(right._id))
+));
 
 export default function ProjectDetails() {
   const { id } = useParams();
@@ -25,6 +29,8 @@ export default function ProjectDetails() {
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [comments, setComments] = useState([]);
+  const [commentPagination, setCommentPagination] = useState({ limit: 20, hasMore: false, nextCursor: null });
+  const [commentsLoading, setCommentsLoading] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [users, setUsers] = useState([]);
   const [taskForm, setTaskForm] = useState({
@@ -44,6 +50,7 @@ export default function ProjectDetails() {
   const [comment, setComment] = useState("");
   const [filter, setFilter] = useState("");
   const [page, setPage] = useState(1);
+  const [tasksLoadedProjectId, setTasksLoadedProjectId] = useState(null);
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, pages: 0 });
   const [editing, setEditing] = useState(false);
   const [state, setState] = useState({
@@ -52,36 +59,87 @@ export default function ProjectDetails() {
     error: "",
     success: "",
   });
+  const memberRole = project?.memberRoles?.find(
+    (entry) => String(entry.user?._id || entry.user) === String(user?._id || user?.id),
+  )?.role;
+  const canManageMembers = ["Admin", "Manager"].includes(memberRole);
+  const canChangeMemberRoles = String(project?.owner?._id || project?.owner) === String(user?._id || user?.id);
 
-  const load = useCallback(async () => {
-    try {
-      const [{ data: projectData }, { data: taskData }] = await Promise.all([
-        api.get(`/projects/${id}`),
-        api.get("/tasks", {
-          params: { project: id, status: filter || undefined, page },
-        }),
-      ]);
-      setProject(projectData.project);
-      setProjectForm({
-        title: projectData.project.title,
-        description: projectData.project.description || "",
-        status: projectData.project.status,
+  useEffect(() => {
+    const controller = new AbortController();
+    api.get(`/projects/${id}`, { signal: controller.signal })
+      .then(({ data }) => {
+        setProject(data.project);
+        setUsers([]);
+        setProjectForm({
+          title: data.project.title,
+          description: data.project.description || "",
+          status: data.project.status,
+        });
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        setState((current) => ({
+          ...current,
+          error: error.response?.data?.message || "Unable to load project",
+        }));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setState((current) => ({ ...current, loading: false }));
+        }
       });
-      setTasks(taskData.tasks);
-      setPagination(taskData.pagination);
-    } catch (error) {
-      setState((current) => ({
-        ...current,
-        error: error.response?.data?.message || "Unable to load project",
-      }));
-    } finally {
-      setState((current) => ({ ...current, loading: false }));
-    }
+
+    return () => controller.abort();
+  }, [id]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    api.get("/tasks", {
+      params: { project: id, status: filter || undefined, page },
+      signal: controller.signal,
+    })
+      .then(({ data }) => {
+        setTasks(data.tasks);
+        setPagination(data.pagination);
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        setState((current) => ({
+          ...current,
+          error: error.response?.data?.message || "Unable to load project tasks",
+        }));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setTasksLoadedProjectId(id);
+      });
+
+    return () => controller.abort();
   }, [id, filter, page]);
 
   useEffect(() => {
-    queueMicrotask(load);
-  }, [load]);
+    const query = memberSearch.trim();
+    if (!canManageMembers || query.length < 2) return;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      api.get("/users", { params: { search: query, project: id }, signal: controller.signal })
+        .then(({ data }) => setUsers(data.users))
+        .catch((error) => {
+          if (controller.signal.aborted) return;
+          setUsers([]);
+          setState((current) => ({
+            ...current,
+            error: error.response?.data?.message || "Unable to search project members",
+          }));
+        });
+    }, 300);
+
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [canManageMembers, id, memberSearch]);
 
   // Socket.IO Real-Time listeners for project view
   useEffect(() => {
@@ -105,7 +163,9 @@ export default function ProjectDetails() {
 
     const handleCommentAdded = ({ taskId, comment: newComment }) => {
       if (selectedTaskId === taskId) {
-        setComments((prev) => (prev.some((c) => c._id === newComment._id) ? prev : [...prev, newComment]));
+        setComments((prev) => prev.some((item) => item._id === newComment._id)
+          ? prev
+          : sortComments([...prev, newComment]));
       }
     };
 
@@ -216,17 +276,6 @@ export default function ProjectDetails() {
     }
   };
 
-  const searchMembers = async (value) => {
-    setMemberSearch(value);
-    if (value.length < 2) return setUsers([]);
-    try {
-      const { data } = await api.get("/users", { params: { search: value } });
-      setUsers(data.users);
-    } catch {
-      setUsers([]);
-    }
-  };
-
   const addMember = async (userId) => {
     try {
       const { data } = await api.post(`/projects/${id}/members`, { userId });
@@ -265,16 +314,29 @@ export default function ProjectDetails() {
     }
   };
 
-  const loadComments = async (taskId) => {
-    try {
-      const { data } = await api.get(`/tasks/${taskId}/comments`);
+  const loadComments = async (taskId, before = null, append = false) => {
+    if (!append) {
       setSelectedTaskId(taskId);
-      setComments(data.comments);
+      setComments([]);
+      setCommentPagination({ limit: 20, hasMore: false, nextCursor: null });
+    }
+    setCommentsLoading(true);
+    try {
+      const { data } = await api.get(`/tasks/${taskId}/comments`, {
+        params: { limit: 20, before: before || undefined },
+      });
+      setSelectedTaskId(taskId);
+      setComments((current) => append
+        ? sortComments([...data.comments, ...current])
+        : data.comments);
+      setCommentPagination(data.pagination);
     } catch (error) {
       setState((current) => ({
         ...current,
         error: error.response?.data?.message || "Unable to load comments",
       }));
+    } finally {
+      setCommentsLoading(false);
     }
   };
 
@@ -286,7 +348,9 @@ export default function ProjectDetails() {
         message: comment,
         attachments: commentAttachments,
       });
-      setComments((items) => (items.some((c) => c._id === data.comment._id) ? items : [...items, data.comment]));
+      setComments((items) => items.some((item) => item._id === data.comment._id)
+        ? items
+        : sortComments([...items, data.comment]));
       setComment("");
       setCommentAttachments([]);
     } catch (error) {
@@ -312,7 +376,7 @@ export default function ProjectDetails() {
     }
   };
 
-  if (state.loading)
+  if (state.loading || tasksLoadedProjectId !== id)
     return (
       <Layout>
         <p className="p-10 text-sm text-slate-500">Loading project...</p>
@@ -586,12 +650,24 @@ export default function ProjectDetails() {
                                 )}
                               </div>
                             ))
+                          ) : commentsLoading ? (
+                            <p className="text-sm text-slate-500">Loading comments...</p>
                           ) : (
                             <p className="text-sm text-slate-500 italic">
                               No comments yet. Be the first to comment.
                             </p>
                           )}
                         </div>
+                        {commentPagination.hasMore && (
+                          <button
+                            type="button"
+                            onClick={() => loadComments(selectedTaskId, commentPagination.nextCursor, true)}
+                            disabled={commentsLoading}
+                            className="mt-3 text-sm font-semibold text-teal-700 disabled:opacity-50"
+                          >
+                            {commentsLoading ? "Loading..." : "Load older comments"}
+                          </button>
+                        )}
 
                         <form
                           onSubmit={(event) => addComment(event, task._id)}
@@ -653,33 +729,39 @@ export default function ProjectDetails() {
           {/* Members Sidebar */}
           <aside className="rounded-2xl border border-slate-200 bg-white p-5">
             <h2 className="font-semibold">Team members</h2>
-            <div className="relative mt-4">
-              <div className="flex gap-2">
-                <input
-                  value={memberSearch}
-                  onChange={(event) => searchMembers(event.target.value)}
-                  placeholder="Search by name or email"
-                  className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
-                />
-                <UserPlus size={19} className="mt-2 text-teal-700" />
-              </div>
-              {users.length > 0 && (
-                <div className="absolute z-10 mt-2 w-full rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
-                  {users.map((item) => (
-                    <button
-                      key={item._id}
-                      onClick={() => addMember(item._id)}
-                      className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-teal-50"
-                    >
-                      {item.name}
-                      <span className="block text-xs text-slate-500">
-                        {item.email}
-                      </span>
-                    </button>
-                  ))}
+            {canManageMembers && (
+              <div className="relative mt-4">
+                <div className="flex gap-2">
+                  <input
+                    value={memberSearch}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setMemberSearch(value);
+                      if (value.trim().length < 2) setUsers([]);
+                    }}
+                    placeholder="Search by name or email"
+                    className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                  />
+                  <UserPlus size={19} className="mt-2 text-teal-700" />
                 </div>
-              )}
-            </div>
+                {users.length > 0 && (
+                  <div className="absolute z-10 mt-2 w-full rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                    {users.map((item) => (
+                      <button
+                        key={item._id}
+                        onClick={() => addMember(item._id)}
+                        className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-teal-50"
+                      >
+                        {item.name}
+                        <span className="block text-xs text-slate-500">
+                          {item.email}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="mt-5 space-y-3">
               {project.members.map((member) => (
                 <div
@@ -690,21 +772,29 @@ export default function ProjectDetails() {
                     <p className="text-sm font-medium">{member.name}</p>
                     <p className="text-xs text-slate-500">{member.email}</p>
                   </div>
-                  <select
-                    aria-label={`Role for ${member.name}`}
-                    value={
-                      project.memberRoles?.find(
+                  {canChangeMemberRoles ? (
+                    <select
+                      aria-label={`Role for ${member.name}`}
+                      value={
+                        project.memberRoles?.find(
+                          (entry) => String(entry.user?._id || entry.user) === String(member._id)
+                        )?.role || "Member"
+                      }
+                      onChange={(event) => updateRole(member._id, event.target.value)}
+                      className="rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                    >
+                      <option>Admin</option>
+                      <option>Manager</option>
+                      <option>Member</option>
+                    </select>
+                  ) : (
+                    <span className="text-xs text-slate-500">
+                      {project.memberRoles?.find(
                         (entry) => String(entry.user?._id || entry.user) === String(member._id)
-                      )?.role || "Member"
-                    }
-                    onChange={(event) => updateRole(member._id, event.target.value)}
-                    className="rounded-lg border border-slate-200 px-2 py-1 text-xs"
-                  >
-                    <option>Admin</option>
-                    <option>Manager</option>
-                    <option>Member</option>
-                  </select>
-                  {String(member._id) !== String(project.owner._id) && (
+                      )?.role || "Member"}
+                    </span>
+                  )}
+                  {canManageMembers && String(member._id) !== String(project.owner._id) && (
                     <button
                       onClick={() => removeMember(member._id)}
                       aria-label={`Remove ${member.name}`}

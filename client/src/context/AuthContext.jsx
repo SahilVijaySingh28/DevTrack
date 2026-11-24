@@ -9,11 +9,20 @@ export function AuthProvider({ children }) {
   const userId = user?._id || user?.id
 
   useEffect(() => {
+    const controller = new AbortController()
     localStorage.removeItem('devtrack_token')
-    api.get('/auth/me')
-      .then(({ data }) => setUser(data.user))
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false))
+    api.get('/auth/me', { signal: controller.signal })
+      .then(({ data }) => {
+        if (!controller.signal.aborted) setUser(data.user)
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setUser(null)
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+
+    return () => controller.abort()
   }, [])
 
   useEffect(() => {

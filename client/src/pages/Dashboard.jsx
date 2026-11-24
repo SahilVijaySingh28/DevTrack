@@ -51,17 +51,28 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => {
-    Promise.all([api.get('/projects'), api.get('/tasks/summary'), api.get('/activity')])
+    const controller = new AbortController()
+    Promise.all([
+      api.get('/projects', { signal: controller.signal }),
+      api.get('/tasks/summary', { signal: controller.signal }),
+      api.get('/activity', { signal: controller.signal }),
+    ])
       .then(([projectResponse, summaryResponse, activityResponse]) => {
+        if (controller.signal.aborted) return
         setProjects(projectResponse.data.projects)
         setProjectCount(projectResponse.data.pagination.total)
         setTaskSummary(normalizeTaskSummary(summaryResponse.data))
         setActivities(activityResponse.data.activities)
       })
-      .catch((error) =>
+      .catch((error) => {
+        if (controller.signal.aborted) return
         setState({ loading: false, error: error.response?.data?.message || 'Unable to load workspace data' })
-      )
-      .finally(() => setState((current) => ({ ...current, loading: false })))
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setState((current) => ({ ...current, loading: false }))
+      })
+
+    return () => controller.abort()
   }, [])
 
   useEffect(() => {

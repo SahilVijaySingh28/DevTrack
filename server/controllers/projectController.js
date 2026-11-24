@@ -55,11 +55,11 @@ const createProject = async (request, response, next) => {
 
 const updateProject = async (request, response, next) => {
   try {
+    if (!mongoose.isValidObjectId(request.params.id)) return response.status(400).json({ success: false, message: 'Invalid project ID' })
     const project = await projectQuery(request.params.id)
     if (!project) return response.status(404).json({ success: false, message: 'Project not found' })
     if (!canManageProject(project, request.user._id)) return response.status(403).json({ success: false, message: 'Admin or Manager role required' })
-    const { title, description, status } = request.body
-    Object.assign(project, { title, description, status })
+    Object.assign(project, request.body)
     const activity = await runTransaction(async (session) => {
       await project.save({ session })
       return recordActivity({ user: request.user._id, project: project._id, type: 'project_updated', message: `Updated project "${project.title}"`, session })

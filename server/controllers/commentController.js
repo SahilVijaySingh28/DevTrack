@@ -7,6 +7,9 @@ const { emitEvent } = require('../utils/socket')
 const { canManageProject } = require('../utils/projectAccess')
 const { isProjectMember } = require('../utils/projectMembership')
 
+const defaultCommentLimit = 20
+const maximumCommentLimit = 100
+
 const getTaskWithAccess = async (taskId, userId) => {
   const task = await Task.findById(taskId).select('title project')
   if (!task || !(await isProjectMember(task.project, userId))) return null
@@ -16,10 +19,37 @@ const getTaskWithAccess = async (taskId, userId) => {
 const getComments = async (request, response, next) => {
   try {
     if (!mongoose.isValidObjectId(request.params.taskId)) return response.status(400).json({ success: false, message: 'Invalid task ID' })
+    const limit = Number(request.query.limit || defaultCommentLimit)
+    if (!Number.isInteger(limit) || limit < 1 || limit > maximumCommentLimit) {
+      return response.status(400).json({ success: false, message: `Comment limit must be between 1 and ${maximumCommentLimit}` })
+    }
+    const before = request.query.before
+    if (before !== undefined && (typeof before !== 'string' || !mongoose.isValidObjectId(before))) {
+      return response.status(400).json({ success: false, message: 'Invalid comment cursor' })
+    }
     const task = await getTaskWithAccess(request.params.taskId, request.user._id)
     if (!task || !task.project) return response.status(404).json({ success: false, message: 'Task not found' })
-    const comments = await Comment.find({ task: task._id }).populate('user', 'name email avatar').sort('createdAt')
-    response.json({ success: true, comments })
+    const filter = { task: task._id }
+    if (before) {
+      const cursorComment = await Comment.findOne({ _id: before, task: task._id }).select('createdAt')
+      if (!cursorComment) return response.status(400).json({ success: false, message: 'Invalid comment cursor' })
+      filter.$or = [
+        { createdAt: { $lt: cursorComment.createdAt } },
+        { createdAt: cursorComment.createdAt, _id: { $lt: cursorComment._id } },
+      ]
+    }
+    const results = await Comment.find(filter)
+      .populate('user', 'name email avatar')
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1)
+    const hasMore = results.length > limit
+    const pageComments = results.slice(0, limit)
+    const nextCursor = hasMore ? pageComments[pageComments.length - 1]._id : null
+    response.json({
+      success: true,
+      comments: pageComments.reverse(),
+      pagination: { limit, hasMore, nextCursor },
+    })
   } catch (error) { next(error) }
 }
 

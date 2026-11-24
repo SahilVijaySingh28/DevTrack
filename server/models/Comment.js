@@ -17,6 +17,6 @@ const commentSchema = new mongoose.Schema(
   { timestamps: { createdAt: true, updatedAt: false } },
 )
 
-commentSchema.index({ task: 1, createdAt: 1 })
+commentSchema.index({ task: 1, createdAt: -1, _id: -1 })
 
 module.exports = mongoose.model('Comment', commentSchema)
