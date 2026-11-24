@@ -105,8 +105,11 @@ const createTask = async (request, response, next) => {
   try {
     const { title, description, project, assignedTo, status, priority, dueDate, attachments } = request.body
     if (!mongoose.isValidObjectId(project)) return response.status(400).json({ success: false, message: 'Valid project ID is required' })
-    const projectRecord = await Project.findOne({ _id: project, members: request.user._id })
-    if (!projectRecord) return response.status(403).json({ success: false, message: 'Project membership required' })
+    const projectRecord = await Project.findById(project)
+    if (!projectRecord) return response.status(404).json({ success: false, message: 'Project not found' })
+    if (!projectRecord.members.some((member) => member.equals(request.user._id))) {
+      return response.status(403).json({ success: false, message: 'Project membership required' })
+    }
     if (assignedTo && (!mongoose.isValidObjectId(assignedTo) || !projectRecord.members.some((member) => member.equals(assignedTo)))) return response.status(400).json({ success: false, message: 'Assigned user must be a project member' })
     const result = await runTransaction(async (session) => {
       const [task] = await Task.create([{ title, description, project, assignedTo, status, priority, dueDate, attachments: attachments || [], createdBy: request.user._id }], { session })
