@@ -35,10 +35,10 @@ This makes it a practical example of how a production-style SaaS app is split in
 
 - User registration and login
 - Password hashing with bcrypt
-- JWT generation and validation
+- Short-lived JWT access tokens with rotating, database-backed refresh sessions
 - Protected frontend routes
 - Backend protection for sensitive API endpoints
-- Current user retrieval via the authenticated session
+- Current user retrieval and automatic access-token refresh
 
 ### Project Management
 
@@ -115,7 +115,7 @@ This makes it a practical example of how a production-style SaaS app is split in
 ```text
 User Browser
    |
-   | HTTP requests + JWT
+   | HTTP requests + HttpOnly access/refresh cookies
    v
 React Frontend
    |
@@ -131,7 +131,7 @@ MongoDB
    |
    | Mongoose models and collections
    v
-Users, Projects, Tasks, Comments, Activity
+Users, RefreshSessions, Projects, Tasks, Comments, Activity
 ```
 
 The frontend is responsible for user interactions, page flow, rendering, and client-side state. The server is responsible for validating requests, enforcing authorization rules, processing business logic, and writing to MongoDB.
@@ -236,8 +236,10 @@ PORT=5000
 NODE_ENV=development
 MONGODB_URI=mongodb://127.0.0.1:27017/devtrack?replicaSet=rs0
 REDIS_URL=
-JWT_SECRET=replace-with-a-long-random-secret
-JWT_EXPIRE=7d
+JWT_ACCESS_SECRET=replace-with-a-unique-random-access-secret-at-least-32-bytes
+JWT_REFRESH_SECRET=replace-with-a-different-random-refresh-secret-at-least-32-bytes
+JWT_ACCESS_EXPIRE=15m
+JWT_REFRESH_EXPIRE=10d
 CLIENT_URL=http://localhost:5173
 ```
 
@@ -254,7 +256,9 @@ VITE_API_URL=http://localhost:5000/api
 - `MONGODB_URI` must point to a MongoDB replica set (including Atlas) because writes use multi-document transactions
 - For local development, start MongoDB with replica set mode enabled and initialize the set as `rs0`
 - Configure `REDIS_URL` when running more than one API instance so Socket.IO rooms and events are shared across instances
-- `JWT_SECRET` should be long and unpredictable
+- `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` must be different, random values of at least 32 bytes
+- Generate each secret separately with `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"` and keep them private
+- Access JWTs default to 15 minutes; refresh JWTs default to 10 days and rotate on use
 - `CLIENT_URL` must match your frontend origin during local or production development
 - Never commit `.env` files to Git
 
@@ -325,7 +329,7 @@ demo4@devtrack.com
 demo5@devtrack.com
 ```
 
-The seed script replaces only its generated demo projects and their tasks, comments, and activity. It also replaces the original sample projects for `demo@devtrack.com`. Run it only against a development/demo database; all five accounts have the same known password.
+The seed script replaces only its generated demo projects and their tasks, comments, and activity. It also replaces the original sample projects for `demo@devtrack.com` and revokes refresh sessions for the five demo accounts when resetting their passwords. Already-issued access tokens can remain valid until they expire. Run it only against a development/demo database; all five accounts have the same known password.
 
 ## Core Data Model
 
@@ -566,8 +570,10 @@ Recommended production environment variables:
 ```env
 NODE_ENV=production
 MONGODB_URI=your-atlas-or-hosted-mongodb-connection-string
-JWT_SECRET=your-secure-secret
-JWT_EXPIRE=7d
+JWT_ACCESS_SECRET=your-unique-access-signing-secret
+JWT_REFRESH_SECRET=your-different-refresh-signing-secret
+JWT_ACCESS_EXPIRE=15m
+JWT_REFRESH_EXPIRE=10d
 CLIENT_URL=https://your-vercel-domain.vercel.app
 ```
 
@@ -591,7 +597,11 @@ VITE_API_URL=https://your-render-service.onrender.com/api
 ## Security Notes
 
 - Passwords are hashed before being saved
-- JWTs in HttpOnly cookies are required for protected HTTP and Socket.IO connections
+- Short-lived access JWTs and rotating refresh tokens are stored in HttpOnly cookies; refresh-token hashes are stored in MongoDB
+- Refresh sessions are revoked on logout, and reuse of a rotated token revokes its session family
+- Refreshes are serialized across tabs in browsers that support the Web Locks API
+- Changing either JWT signing secret invalidates existing sessions; users must sign in again
+- Protected HTTP requests refresh expired access tokens automatically; Socket.IO is disconnected at token expiry and refreshes before reconnecting
 - Socket.IO project rooms are membership-authorized and project-scoped
 - Socket.IO uses a Redis adapter when `REDIS_URL` is configured; without it, run a single API instance
 - Authenticated user records are cached for 30 seconds and project membership checks for 15 seconds; Redis shares the cache across instances when configured, otherwise the cache is bounded per process
@@ -622,7 +632,8 @@ Check that:
 - Login or registration sets the `devtrack_token` HttpOnly cookie
 - The browser accepts the `devtrack_token` HttpOnly cookie and the frontend origin matches `CLIENT_URL`
 - The token is not expired
-- `JWT_SECRET` matches between environments
+- `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` are set, different, and at least 32 bytes
+- Access and refresh token expiry settings are valid (`15m` and `10d` by default)
 
 ### Frontend not loading after login
 

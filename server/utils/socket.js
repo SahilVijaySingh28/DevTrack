@@ -6,6 +6,7 @@ const mongoose = require('mongoose')
 const { setRedisCacheClient } = require('./cache')
 const getCachedUser = require('./cachedUser')
 const { isProjectMember } = require('./projectMembership')
+const { getAccessTokenSecret } = require('./tokenConfig')
 
 let io = null
 let redisClients = []
@@ -21,8 +22,6 @@ const initSocket = (httpServer) => {
 
   io.use(async (socket, next) => {
     try {
-      if (!process.env.JWT_SECRET) throw new Error('Authentication is not configured')
-
       const cookie = socket.handshake.headers.cookie
         ?.split(';')
         .map((part) => part.trim())
@@ -30,19 +29,42 @@ const initSocket = (httpServer) => {
       const token = cookie ? decodeURIComponent(cookie.slice('devtrack_token='.length)) : null
       if (!token) throw new Error('Authentication required')
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET)
+      const decoded = jwt.verify(token, getAccessTokenSecret())
+      if (decoded.tokenUse !== 'access' || typeof decoded.userId !== 'string' || typeof decoded.exp !== 'number') {
+        throw new Error('Invalid access token')
+      }
       const user = await getCachedUser(decoded.userId)
       if (!user) throw new Error('User no longer exists')
 
       socket.data.userId = String(user._id)
+      socket.data.accessTokenExpiresAt = decoded.exp * 1000
       next()
     } catch (error) {
+      if (error.name === 'TokenExpiredError') {
+        const expiredError = new Error('Access token expired')
+        expiredError.data = { code: 'ACCESS_TOKEN_EXPIRED' }
+        return next(expiredError)
+      }
       next(error)
     }
   })
 
   io.on('connection', (socket) => {
     socket.join(`user_${socket.data.userId}`)
+
+    let expiryTimer
+    const expireSocket = () => {
+      const remainingMs = socket.data.accessTokenExpiresAt - Date.now()
+      if (remainingMs > 0) {
+        expiryTimer = setTimeout(expireSocket, Math.min(remainingMs, 2147483647))
+        return
+      }
+
+      socket.emit('access_token_expired')
+      socket.disconnect(true)
+    }
+    socket.once('disconnect', () => clearTimeout(expiryTimer))
+    expireSocket()
 
     socket.on('join_project', async (projectId) => {
       if (!mongoose.isValidObjectId(projectId)) {

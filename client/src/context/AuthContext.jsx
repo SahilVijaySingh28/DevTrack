@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import api from '../api/axios'
+import api, { refreshSession } from '../api/axios'
 import socket from '../api/socket'
 import { AuthContext } from './auth-context'
 
@@ -18,8 +18,36 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (userId) {
+      let active = true
+      let refreshingSocket = false
+      const refreshSocket = async () => {
+        if (refreshingSocket) return
+        refreshingSocket = true
+        try {
+          await refreshSession()
+          if (active) {
+            socket.disconnect()
+            socket.connect()
+          }
+        } catch {
+          if (active) setUser(null)
+        } finally {
+          refreshingSocket = false
+        }
+      }
+      const handleConnectError = (error) => {
+        if (error.data?.code === 'ACCESS_TOKEN_EXPIRED') void refreshSocket()
+      }
+
+      socket.on('connect_error', handleConnectError)
+      socket.on('access_token_expired', refreshSocket)
       socket.connect()
-      return () => socket.disconnect()
+      return () => {
+        active = false
+        socket.off('connect_error', handleConnectError)
+        socket.off('access_token_expired', refreshSocket)
+        socket.disconnect()
+      }
     }
 
     socket.disconnect()

@@ -11,9 +11,13 @@ services:
         value: production
       - key: MONGODB_URI
         sync: false
-      - key: JWT_SECRET
+      - key: JWT_ACCESS_SECRET
         sync: false
-      - key: JWT_EXPIRE
-        value: 7d
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: JWT_ACCESS_EXPIRE
+        value: 15m
+      - key: JWT_REFRESH_EXPIRE
+        value: 10d
       - key: CLIENT_URL
         value: https://dev-track-phi-ten.vercel.app

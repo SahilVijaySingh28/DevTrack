@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken')
 const { deleteCacheKey } = require('../utils/cache')
 const getCachedUser = require('../utils/cachedUser')
+const { getAccessTokenSecret } = require('../utils/tokenConfig')
 
 const protect = async (request, response, next) => {
   try {
@@ -9,11 +10,10 @@ const protect = async (request, response, next) => {
       return response.status(401).json({ success: false, message: 'Authentication required' })
     }
 
-    if (!process.env.JWT_SECRET) {
-      return response.status(500).json({ success: false, message: 'Authentication is not configured' })
+    const decoded = jwt.verify(token, getAccessTokenSecret())
+    if (decoded.tokenUse !== 'access' || typeof decoded.userId !== 'string' || typeof decoded.exp !== 'number') {
+      return response.status(401).json({ success: false, message: 'Invalid or expired token' })
     }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET)
     const user = await getCachedUser(decoded.userId)
 
     if (!user) {

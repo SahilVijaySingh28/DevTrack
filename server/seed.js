@@ -4,6 +4,7 @@ const mongoose = require('mongoose')
 const Activity = require('./models/Activity')
 const Comment = require('./models/Comment')
 const Project = require('./models/Project')
+const RefreshSession = require('./models/RefreshSession')
 const Task = require('./models/Task')
 const User = require('./models/User')
 
@@ -74,6 +75,8 @@ const buildDemoTasks = (users, projects) => Array.from({ length: 75 }, (_, index
   }
 })
 
+const revokeDemoRefreshSessions = (userIds) => RefreshSession.deleteMany({ user: { $in: userIds } })
+
 const seed = async () => {
   if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is not configured')
 
@@ -92,6 +95,8 @@ const seed = async () => {
   }
 
   const userIds = users.map((user) => user._id)
+  await revokeDemoRefreshSessions(userIds)
+
   const seededProjects = await Project.find({
     owner: { $in: userIds },
     $or: [
@@ -147,4 +152,4 @@ if (require.main === module) {
   })
 }
 
-module.exports = { buildDemoProjects, buildDemoTasks, demoPassword, demoUsers }
+module.exports = { buildDemoProjects, buildDemoTasks, demoPassword, demoUsers, revokeDemoRefreshSessions }

@@ -16,6 +16,7 @@ const projectRoutes = require('./routes/projectRoutes')
 const taskRoutes = require('./routes/taskRoutes')
 const userRoutes = require('./routes/userRoutes')
 const { initSocket, connectSocketAdapter, closeSocketAdapter } = require('./utils/socket')
+const { getTokenSecrets } = require('./utils/tokenConfig')
 
 const app = express()
 const server = http.createServer(app)
@@ -49,6 +50,7 @@ app.use(notFound)
 app.use(errorHandler)
 
 const startServer = async () => {
+  getTokenSecrets()
   await connectDatabase()
   await connectSocketAdapter()
   server.listen(port, () => {
